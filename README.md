@@ -1,7 +1,7 @@
 # Demostración · Sistema de gestión para Cra. María Lucía Furtado
 
 Demostración de un sistema de gestión para estudios contables, desarrollado por
-**[Wydan Solutions](https://wydan.uy)**.
+**Wydan Solutions**.
 
 - **Todos los datos son inventados.** No hay información real de ningún cliente.
 - Funciona por completo en el navegador: no hay servidor ni base de datos.
