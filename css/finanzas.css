@@ -9,6 +9,7 @@
 :root{
   --v-sp:var(--azul); --v-cede:var(--blue); --v-nocede:var(--green);
   --v-ivamin:#b7651b; --v-bps:#7a3fb0; --v-feriado:#8a94a3;
+  --v-irpf:#1d6b74; --v-propio:#6E7C8C;
 }
 
 /* ===== SUBPESTAÑAS DE FINANZAS ===== */
@@ -55,6 +56,21 @@ tbody tr.imp-vacio td{color:var(--muted)}
   padding:3px 9px;border-radius:20px;background:var(--border-soft);color:var(--muted);cursor:pointer;white-space:nowrap}
 .venc-ok.on{background:var(--green-l);color:var(--green)}
 .venc-nota{font-size:11.5px;color:var(--muted);margin:5px 0 9px;line-height:1.5}
+/* El título de cada bloque de la lista de impuestos */
+.venc-tit{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:700;
+  margin:18px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--border-soft)}
+.venc-tit:first-of-type{margin-top:4px}
+/* El nombre editable de un impuesto propio */
+.venc-nom{font-weight:700;color:var(--azul-osc);max-width:320px;flex:1}
+/* Cada cuánto vence, qué día y el importe fijo */
+.venc-def{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:9px}
+.venc-def label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.venc-def select,.venc-def input{padding:6px 9px;border:1px solid var(--border);border-radius:7px;
+  background:var(--card);font-size:13px;color:var(--text);font-weight:400;text-transform:none;letter-spacing:0}
+.venc-def select:focus,.venc-def input:focus{outline:none;border-color:var(--azul)}
+.venc-def input[type=number]{width:74px}
+.venc-falta{font-size:11.5px;color:var(--amber);background:var(--amber-l);border-radius:7px;padding:6px 10px}
 .venc-meses{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:6px}
 .venc-m{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border);
   border-radius:7px;padding:4px 7px;font-size:11px}

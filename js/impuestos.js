@@ -64,12 +64,12 @@ function impRefrescar(){ var k=document.getElementById('imp-kpis'); if(k)k.inner
 // Crea las filas del año con los vencimientos de los grupos que le corresponden (sin repetir).
 function impTraerVencimientos(){
   var y=impYear(), lista=vencDelAnio(y,true), nuevos=0;
-  if(!lista.length){ toast('Primero elegí tus vencimientos en Configuración'); return; }
+  if(!lista.length){ toast('Primero elegí tus impuestos en ⋯ → Configuración'); return; }
   lista.forEach(function(v){
     var ya=Store.all('impuestos').some(function(x){ return x.anio===y&&x.mes===v.mes&&x.gid===v.gid; });
     if(ya)return;
     Store.data.impuestos.push({id:'i'+Date.now()+Math.floor(Math.random()*9999),anio:y,mes:v.mes,gid:v.gid,
-      concepto:v.grupo.org+' · '+v.grupo.nombre,periodo:v.periodo,importe:'',venc:v.iso,
+      concepto:vencNombre(v.grupo),periodo:v.periodo,importe:vencImporte(v.gid),venc:v.iso,
       pagado:false,fechaPago:'',comprobante:'',notas:''});
     nuevos++;
   });
@@ -92,8 +92,9 @@ function renderImpuestos(){
   h+=impProximos();
   h+=impTablaRegistro(y);
   h+='<div class="hon-foot">💡 El IVA de ventas sale de Honorarios y solo cuenta las filas que tienen <b>N° de factura</b>. '
-    +'El de compras sale de Gastos y ya contempla el 50% cuando corresponde. Las fechas de vencimiento se cambian en '
-    +'<b>⋯ → Configuración → Vencimientos</b>.</div>';
+    +'El de compras sale de Gastos y ya contempla el 50% cuando corresponde. Los demás impuestos y aportes '
+    +'(IRPF, Caja de Profesionales, Fondo de Solidaridad…) los elegís y los configurás en '
+    +'<b>⋯ → Configuración → Mis impuestos y aportes</b>: ahí también se corrigen las fechas.</div>';
   $('#view-imp').innerHTML=h;
   impCalcPintar(); // el desglose de la calculadora, ya con lo que estuviera escrito
 }
@@ -195,13 +196,13 @@ function impTablaRegistro(y){
 /* ===== ALTA / EDICIÓN ===== */
 function impForm(id){
   var x=id?Store.get('impuestos',id):{}; curForm={form:'imp',id:id||null};
-  var mios=VENC_GRUPOS.filter(function(g){ return vencEsMio(g.id); });
-  var ops=mios.concat(VENC_GRUPOS.filter(function(g){ return !vencEsMio(g.id); }));
+  var todos=vencGruposTodos();
+  var ops=todos.filter(function(g){ return vencEsMio(g.id); }).concat(todos.filter(function(g){ return !vencEsMio(g.id); }));
   $('#modal-title').textContent=id?'Editar registro':'Nuevo registro de impuesto';
   $('#modal-del').style.display=id?'inline-flex':'none';
   $('#modal-body').innerHTML='<div class="field"><label>Impuesto <span class="req">*</span></label>'
     +'<input data-k="concepto" list="dl-impuestos" autocomplete="off" value="'+esc(x.concepto||'')+'" placeholder="Ej: DGI · Servicios Personales"></div>'
-    +'<datalist id="dl-impuestos">'+ops.map(function(g){ return '<option value="'+esc(g.org+' · '+g.nombre)+'">'; }).join('')+'</datalist>'
+    +'<datalist id="dl-impuestos">'+ops.map(function(g){ return '<option value="'+esc(vencNombre(g))+'">'; }).join('')+'</datalist>'
     +'<div class="field-2"><div class="field"><label>Período</label><input data-k="periodo" value="'+esc(x.periodo||'')+'" placeholder="Ej: Enero-Febrero"></div>'
     +'<div class="field"><label>Importe</label><input data-k="importe" value="'+esc(numTxt(honNum(x.importe)))+'" placeholder="Ej: 12.500"></div></div>'
     +'<div class="field-2"><div class="field"><label>Vence el</label><input type="date"'+DR+' data-k="venc" value="'+esc(x.venc||'')+'"></div>'
@@ -237,7 +238,7 @@ function seedImpuestos(){
   if(!VENC_TABLA[y])return out;
   [[0,'Nov-Dic del año anterior',true],[2,'Enero-Febrero',true],[4,'Marzo-Abril',true],[6,'Mayo-Junio',false]].forEach(function(p,i){
     var iso=vencFecha('dgi_sp',y,p[0]); if(!iso)return;
-    out.push({id:'is'+i,anio:y,mes:p[0],gid:'dgi_sp',concepto:'DGI · Servicios Personales',periodo:p[1],
+    out.push({id:'is'+i,anio:y,mes:p[0],gid:'dgi_sp',concepto:'DGI · IVA (Servicios Personales)',periodo:p[1],
       importe:[9800,11200,10450,12300][i],venc:iso,pagado:p[2],fechaPago:p[2]?iso:'',
       comprobante:p[2]?'B-'+(4100+i):'',notas:''});
   });
