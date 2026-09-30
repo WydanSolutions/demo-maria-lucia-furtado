@@ -27,8 +27,19 @@ const Store={
   data:null,
 
   load(){
-    try{ const r=localStorage.getItem(KEY); if(r){ this.data=JSON.parse(r); this._fix(); Boveda.setConfig(this.data.boveda||null); return; } }catch(e){}
-    this.data=seed(); this._fix(); Boveda.setConfig(null);
+    // Si hay algo guardado en este navegador, se usa. Pero si quedó vacío (o ilegible), se rehacen
+    // los datos de ejemplo: una demostración siempre tiene que tener información para mostrar.
+    try{
+      const r=localStorage.getItem(KEY);
+      if(r){
+        const d=JSON.parse(r);
+        const tieneAlgo=['clientes','dj','tareas','gastos','sueldos','honCli'].some(function(k){ return Array.isArray(d[k])&&d[k].length; });
+        if(tieneAlgo){ this.data=d; this._fix(); Boveda.setConfig(this.data.boveda||null); return; }
+      }
+    }catch(e){ console.error('No se pudieron leer los datos guardados en este navegador',e); }
+    try{ this.data=seed(); }
+    catch(e){ console.error('No se pudieron armar los datos de ejemplo',e); this.data={}; }
+    this._fix(); Boveda.setConfig(null);
   },
 
   // Guarda en el navegador. Las credenciales se sacan del texto guardado: solo quedan cifradas, en "_sec".
@@ -61,6 +72,9 @@ const Store={
     if(!Array.isArray(d.cliTipos)){ d.cliTipos=CLI_TIPOS_DEF.slice(); d.clientes.forEach(c=>{ if(c.tipo&&d.cliTipos.indexOf(c.tipo)<0)d.cliTipos.push(c.tipo); }); }
     if(!d.panel)d.panel=PANEL_DEF();
     if(!d.gcal)d.gcal={url:'',auto:true,last:0};
+    // DEMOSTRACIÓN: si una sección quedó sin ejemplos (por ejemplo, porque esta persona abrió el demo
+    // con una versión anterior, cuando Gastos todavía no existía), se vuelven a cargar.
+    if(MODO_DEMO&&!d.gastos.length&&typeof seedGastos==='function'){ d.gastos=seedGastos(); d.cuotas=seedCuotas(d.gastos); }
     // La nota de bienvenida se fue mejorando: si en este navegador quedó una versión anterior, se
     // actualiza sola. Solo toca esa nota, nunca una escrita por la clienta.
     var bv=d.notes.find(function(n){ return n.id==='n1'; });

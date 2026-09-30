@@ -38,14 +38,14 @@ function gstFormPintar(){
     +'<div class="field-2"><div class="field"><label>Fecha de la compra</label>'
       +'<input type="date" data-k="fecha"'+DR+' value="'+esc(g.fecha||'')+'" onchange="gstFormResumen()"></div>'
       +'<div class="field"><label>'+(credito?'Total a pagar':'Importe')+' <span class="req">*</span></label>'
-      +'<input data-k="importe" value="'+esc(numTxt(honNum(g.importe)))+'" placeholder="Ej: 12.600" oninput="gstFormResumen()"></div></div>';
+      +'<input data-k="importe" value="'+esc(numTxt(honNum(g.importe)))+'" placeholder="Ej: 12.600" oninput="gstFormCambioImporte()"></div></div>';
 
   // IVA de la factura (le sirve para el crédito fiscal)
   h+='<div class="gst-box"><label class="chkline"><input type="checkbox" data-k="conIva" '+(g.conIva?'checked':'')+' onchange="gstFormSetIva(this)"> La factura incluye IVA (22%)</label>';
   if(g.conIva){
-    var ivaSug=(g.iva!==undefined&&g.iva!==''&&g.iva!==null)?honNum(g.iva):gstIvaSugerido(honNum(g.importe));
+    var ivaSug=honNum(g.iva)||gstIvaSugerido(honNum(g.importe));
     h+='<div class="field" style="margin:10px 0 0"><label>IVA incluido</label>'
-      +'<input data-k="iva" value="'+esc(numTxt(ivaSug))+'" placeholder="0">'
+      +'<input data-k="iva" value="'+esc(ivaSug?numTxt(ivaSug):'')+'" placeholder="Se calcula solo" oninput="this.dataset.manual=1">'
       +'<div class="gst-ayuda">Se calcula solo sobre el total; si la factura dice otra cosa, corregilo.</div></div>';
   }
   h+='</div>';
@@ -76,6 +76,13 @@ function gstFormPintar(){
   gstFormResumen();
 }
 function gstIvaSugerido(total){ return total?Math.round(total*IVA_GASTO/(1+IVA_GASTO)):0; }
+// Al cambiar el importe se rehace el plan de cuotas y se recalcula el IVA (salvo que lo hayan escrito a mano).
+function gstFormCambioImporte(){ gstFormResumen(); gstFormIvaAuto(); }
+function gstFormIvaAuto(){
+  var campo=$('#modal-body [data-k="iva"]'); if(!campo||campo.dataset.manual==='1')return;
+  var imp=$('#modal-body [data-k="importe"]');
+  campo.value=numTxt(gstIvaSugerido(honNum(imp?imp.value:0)));
+}
 
 // Resumen en vivo del plan de cuotas: se actualiza mientras escribe, sin repintar el formulario.
 function gstFormResumen(){
