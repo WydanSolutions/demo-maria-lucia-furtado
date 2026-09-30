@@ -89,7 +89,7 @@ const FERIADOS={
 };
 
 /* ===== CONFIGURACIÓN DE LA USUARIA ===== */
-const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],importes:{},propios:[],abiertos:[],feriados:true,frecuencia:'bimestral'};
+const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],importes:{},propios:[],abiertos:[],meses:[],feriados:true,frecuencia:'bimestral'};
 function vencCfg(){
   var d=Store.data;
   if(!d)return VENC_CFG_DEF; // todavía se están armando los datos
@@ -101,6 +101,7 @@ function vencCfg(){
   if(!d.venc.importes||typeof d.venc.importes!=='object')d.venc.importes={};
   if(!Array.isArray(d.venc.ocultas))d.venc.ocultas=[];
   if(!Array.isArray(d.venc.abiertos))d.venc.abiertos=[];
+  if(!Array.isArray(d.venc.meses))d.venc.meses=[];
   if(!Array.isArray(d.venc.propios))d.venc.propios=VENC_PROPIOS_DEF.map(function(p){ return Object.assign({},p); });
   if(d.venc.feriados!==false)d.venc.feriados=true;
   return d.venc;
