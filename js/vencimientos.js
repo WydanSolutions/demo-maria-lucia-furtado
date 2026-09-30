@@ -38,14 +38,14 @@ const VENC_GRUPOS=[
 const VENC_PROPIOS_DEF=[
   {id:'p_cjppu',    org:'CJPPU', nombre:'Caja de Profesionales', tipo:'bimestral', dia:0, mes:0,
    nota:'Aporte jubilatorio de los profesionales universitarios independientes. Es un monto fijo según la categoría: cargalo acá abajo y se repite solo.'},
-  {id:'p_irpf_dj',  org:'DGI', nombre:'IRPF · Declaración anual', tipo:'anual', dia:0, mes:6,
-   nota:'La fecha depende del último dígito de la cédula: ponela vos.'},
   {id:'p_fondo',    org:'Fondo de Solidaridad', nombre:'Aporte anual', tipo:'anual', dia:0, mes:0,
    nota:'Aporte anual de los egresados universitarios. Es un monto fijo en BPC.'},
   {id:'p_fondo_ad', org:'Fondo de Solidaridad', nombre:'Adicional', tipo:'anual', dia:0, mes:0,
    nota:'El adicional del Fondo de Solidaridad, si te corresponde.'},
   {id:'p_bps_emp',  org:'BPS', nombre:'Empresas (con empleados)', tipo:'mensual', dia:0,
    nota:'Solo si tenés empleados. La fecha depende del último dígito del número de empresa.'},
+  {id:'p_irpf_dj',  org:'DGI', nombre:'IRPF · Declaración anual', tipo:'anual', dia:0, mes:6,
+   nota:'La fecha depende del último dígito de la cédula: ponela vos.'},
   {id:'p_irae',     org:'DGI', nombre:'IRAE', tipo:'anual', dia:0, mes:0,
    nota:'Si alguna vez tributás por IRAE en lugar de IRPF.'},
 ];
@@ -89,7 +89,7 @@ const FERIADOS={
 };
 
 /* ===== CONFIGURACIÓN DE LA USUARIA ===== */
-const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],importes:{},propios:[],feriados:true};
+const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],importes:{},propios:[],abiertos:[],feriados:true,frecuencia:'bimestral'};
 function vencCfg(){
   var d=Store.data;
   if(!d)return VENC_CFG_DEF; // todavía se están armando los datos
@@ -100,6 +100,7 @@ function vencCfg(){
   if(!d.venc.confirmadas||typeof d.venc.confirmadas!=='object')d.venc.confirmadas={};
   if(!d.venc.importes||typeof d.venc.importes!=='object')d.venc.importes={};
   if(!Array.isArray(d.venc.ocultas))d.venc.ocultas=[];
+  if(!Array.isArray(d.venc.abiertos))d.venc.abiertos=[];
   if(!Array.isArray(d.venc.propios))d.venc.propios=VENC_PROPIOS_DEF.map(function(p){ return Object.assign({},p); });
   if(d.venc.feriados!==false)d.venc.feriados=true;
   return d.venc;

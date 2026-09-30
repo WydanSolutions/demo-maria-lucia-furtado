@@ -88,30 +88,28 @@ function vencCfgCard(){
   var y=anioActivo(), c=vencCfg(), mios=c.grupos.length;
   var h='<div class="card"><div class="card-head"><h3>🏛 Mis impuestos y aportes</h3>'
     +'<span class="csub">'+mios+' marcado'+(mios===1?'':'s')+' · '+y+'</span></div><div class="card-body">';
-  h+='<p class="muted-cell" style="font-size:13px;margin:2px 0 14px">Marcá <b>los que te corresponden a vos</b>. '
-    +'Esos son los que aparecen en Impuestos, en los avisos y en el Panel. Los de DGI y BPS igual se siguen '
-    +'viendo en el Calendario, porque te sirven para tus clientes.</p>';
+  h+='<p class="muted-cell" style="font-size:13px;margin:2px 0 14px">Tocá cada grupo para abrirlo y marcá '
+    +'<b>los que te corresponden a vos</b>. Esos son los que aparecen en Impuestos, en los avisos y en el Panel. '
+    +'Los de DGI y BPS igual se siguen viendo en el Calendario, porque te sirven para tus clientes.</p>';
 
-  /* --- Bloque 1: las que ya traen el calendario --- */
-  h+='<div class="venc-tit">Con el calendario del año ya cargado</div>';
-  if(!vencHayAnio(y))
-    h+='<div class="venc-aviso">Todavía no están las fechas de '+y+'. DGI y BPS publican el calendario del año '
-      +'siguiente en diciembre; hasta entonces las podés cargar a mano.</div>';
-  h+='<div class="venc-aviso">⚠ Estas fechas son una <b>ayuda</b>, no la fuente oficial: DGI las corrige durante '
-    +'el año por resoluciones nuevas (en '+y+' ya cambió seis, marcadas con *). Revisalas y tocá «Sin revisar» '
-    +'para dejarlas confirmadas. <a href="https://www.gub.uy/direccion-general-impositiva/" target="_blank" '
-    +'rel="noopener">Ver el calendario en gub.uy →</a></div>';
-  h+=VENC_GRUPOS.map(function(g){ return vencCfgFila(g,y); }).join('');
+  h+=vencCfgDesplegable('impuestos','🏛','Impuestos','DGI y BPS, con el calendario del año ya cargado',
+      VENC_GRUPOS.map(function(g){ return vencCfgFila(g,y); }).join(''),
+      VENC_GRUPOS.filter(function(g){ return vencEsMio(g.id); }).length, VENC_GRUPOS.length,
+      '<div class="venc-aviso">⚠ Estas fechas son una <b>ayuda</b>, no la fuente oficial: DGI las corrige durante '
+      +'el año por resoluciones nuevas (en '+y+' ya cambió seis, marcadas con *). Revisalas y tocá «Sin revisar» '
+      +'para dejarlas confirmadas. <a href="https://www.gub.uy/direccion-general-impositiva/" target="_blank" '
+      +'rel="noopener">Ver el calendario en gub.uy →</a></div>'
+      +(vencHayAnio(y)?'':'<div class="venc-aviso">Todavía no están las fechas de '+y+'. DGI y BPS publican el '
+        +'calendario del año siguiente en diciembre; hasta entonces las podés cargar a mano.</div>'));
 
-  /* --- Bloque 2: las que define ella --- */
-  h+='<div class="venc-tit">Los tuyos · vos ponés cada cuánto vencen</div>';
-  h+='<p class="muted-cell" style="font-size:12.5px;margin:0 0 10px">Estos no tienen un calendario que podamos '
-    +'cargar: elegí cada cuánto vencen y qué día. Si es un importe fijo (como la Caja de Profesionales o el '
-    +'Fondo de Solidaridad), cargalo una vez y se repite solo en cada período.</p>';
-  h+=vencPropios().map(function(g){
-    return vencCfgFila(Object.assign({corto:g.nombre,color:'var(--v-propio)',propio:true},g),y);
-  }).join('');
-  h+='<button class="btn btn-sm" style="margin-top:4px" onclick="vencPropioNuevo()">+ Agregar un impuesto o aporte</button>';
+  var propios=vencPropios();
+  h+=vencCfgDesplegable('aportes','🤝','Aportes','Vos ponés cada cuánto vencen y qué día',
+      propios.map(function(g){ return vencCfgFila(Object.assign({corto:g.nombre,color:'var(--v-propio)',propio:true},g),y); }).join('')
+      +'<button class="btn btn-sm" style="margin-top:4px" onclick="vencPropioNuevo()">+ Agregar un impuesto o aporte</button>',
+      propios.filter(function(g){ return vencEsMio(g.id); }).length, propios.length,
+      '<p class="muted-cell" style="font-size:12.5px;margin:0 0 10px">Estos no tienen un calendario que podamos '
+      +'cargar. Si es un importe fijo (como la Caja de Profesionales o el Fondo de Solidaridad), cargalo una vez '
+      +'y se repite solo en cada período.</p>');
 
   h+='<hr style="border:none;border-top:1px solid var(--border-soft);margin:18px 0 12px">';
   h+='<label class="chkline"><input type="checkbox" onchange="vencToggleFeriados()" '+(c.feriados!==false?'checked':'')
@@ -119,6 +117,23 @@ function vencCfgCard(){
   h+='<div class="muted-cell" style="font-size:12px;margin-top:8px">Los feriados también salen de fuentes públicas '
     +'y algunas no coinciden en cuáles son laborables: revisalos antes de usarlos.</div>';
   return h+'</div></div>';
+}
+
+/* Un grupo que se abre al tocarlo. Arranca cerrado, salvo que la usuaria lo haya dejado abierto. */
+function vencCfgDesplegable(id,ico,titulo,sub,contenido,marcados,total,intro){
+  var abierto=(vencCfg().abiertos||[]).indexOf(id)>=0;
+  return '<details class="venc-grupo"'+(abierto?' open':'')+' ontoggle="vencCfgAbrir(\''+id+'\',this.open)">'
+    +'<summary><span class="vg-ico">'+ico+'</span><span class="vg-t"><b>'+titulo+'</b><span>'+esc(sub)+'</span></span>'
+    +'<span class="vg-n'+(marcados?' on':'')+'">'+marcados+' de '+total+'</span></summary>'
+    +'<div class="vg-body">'+(intro||'')+contenido+'</div></details>';
+}
+function vencCfgAbrir(id,abierto){
+  var c=vencCfg();
+  if(!Array.isArray(c.abiertos))c.abiertos=[];
+  var i=c.abiertos.indexOf(id);
+  if(abierto&&i<0)c.abiertos.push(id);
+  if(!abierto&&i>=0)c.abiertos.splice(i,1);
+  Store.save();
 }
 
 /* Una fila de la lista: el casillero, el nombre, y abajo las fechas (o los campos para definirlas). */
