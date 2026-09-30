@@ -69,6 +69,7 @@ function saveForm(){
   if(!modalDatesOk())return;
   if(curForm.form==='honcli'){honCliSave();return;}
   if(curForm.form==='gasto'){gastoSave();return;}
+  if(curForm.form==='imp'){impSave();return;}
   if(curForm.form==='note'){var tx=document.getElementById('note-ta').value.trim();if(!tx){toast('Escribí algo en la nota');return;}var nn=curForm.id?Store.get('notes',curForm.id):{id:'n'+Date.now(),date:today()};nn.text=tx;nn.color=_noteColor;if(!curForm.id){Store.data.notes.push(nn);}Store.save();closeModal();renderPanel();toast('Nota guardada');return;}
   // Celda de Empresas / Serv. Profesionales. Ojo: guardar el gid ANTES de closeModal() (que borra curForm);
   // antes se perdía y la tabla no se redibujaba hasta cambiar de pestaña (el "delay" del ✈ Enviado).
@@ -102,6 +103,7 @@ function saveForm(){
 function deleteCurrent(){
   if(curForm.form==='honcli'){honCliDel();return;}
   if(curForm.form==='gasto'){gastoDel();return;}
+  if(curForm.form==='imp'){impDel();return;}
   if(curForm.form==='note'){if(confirm('¿Eliminar esta nota?')){delNote(curForm.id);closeModal();}return;}
   if(curForm.form&&curForm.form.startsWith('grid:')){const gid=curForm.gid;if(confirm('¿Eliminar esta fila?')){Store.data.grids[gid].rows=Store.data.grids[gid].rows.filter(x=>x.id!==curForm.id);Store.save();closeModal();renderGrid(gid);toast('Eliminado');}return;}
   const cfg=FORMS[curForm.form];if(confirm('¿Eliminar este registro?')){Store.remove(cfg.col,curForm.id);closeModal();renderView(CUR);updateBadges();toast('Eliminado');}

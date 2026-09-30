@@ -9,9 +9,10 @@ var KPI_DEFS={
   sueldosPend:{label:'Sueldos del mes',foot:'sin enviar',cls:'',calc:function(){var mm=new Date().getMonth(),yy=anioActivo();return Store.all('sueldos').filter(function(r){return r.mes===mm&&r.anio===yy&&r.estado!=='Enviado';}).length;}},
   djPend:{label:'DJ del año',foot:'pendientes',cls:'',calc:function(){return Store.all('dj').filter(function(d){return d.anio===anioActivo()&&d.estado!=='Presentada';}).length;}},
   clientesAct:{label:'Clientes activos',foot:'en cartera',cls:'k-green',calc:function(){return Store.all('clientes').filter(function(c){return !c.archivado;}).length;}},
-  gastosPend:{label:'Gastos sin pagar',foot:'este mes',cls:'k-amber',calc:function(){var n=new Date();return gstFilasMes(n.getFullYear(),n.getMonth()).filter(function(f){return !f.pagado;}).length;}}
+  gastosPend:{label:'Gastos sin pagar',foot:'este mes',cls:'k-amber',calc:function(){var n=new Date();return gstFilasMes(n.getFullYear(),n.getMonth()).filter(function(f){return !f.pagado;}).length;}},
+  impVenc:{label:'Impuestos vencidos',foot:'sin pagar',cls:'k-alerta',calc:function(){return impVencidos().length;}}
 };
-var KPI_ORDER=['tareasPend','tareasVenc','sueldosPend','djPend','clientesAct','gastosPend'];
+var KPI_ORDER=['tareasPend','tareasVenc','sueldosPend','djPend','clientesAct','gastosPend','impVenc'];
 function pkpi(k){var on=(Store.data.panel.kpis||[]).indexOf(k)>=0;return '<label><input type="checkbox" '+(on?'checked':'')+' onchange="panelKpi(\''+k+'\',this.checked)"> '+KPI_DEFS[k].label+'</label>';}
 function panelKpi(k,on){var a=(Store.data.panel.kpis||[]).filter(function(x){return x!==k;});if(on)a.push(k);Store.data.panel.kpis=a;Store.save();renderPanel();}
 // Nombre con el que saluda el Panel (sale de "Mi perfil").
@@ -42,16 +43,16 @@ function pbResizeStart(e,k){
 function renderPanel(){
   const P=Store.data.panel; if(!P.kpis)P.kpis=['tareasPend','tareasVenc'];
   if(!Array.isArray(P.order)||!P.order.length) P.order=PANEL_ORDER_DEF.slice();
-  ['kpis','tareas','estado','vistas','gastos','notas','calendario'].forEach(function(k){if(P.order.indexOf(k)<0)P.order.push(k);});
+  ['kpis','tareas','estado','vistas','gastos','vencimientos','notas','calendario'].forEach(function(k){if(P.order.indexOf(k)<0)P.order.push(k);});
   const now=new Date();
   const fecha=now.toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   // Botón "Personalizar panel": fijo al costado derecho, a mitad de altura de la pantalla.
   const cfg='<button class="pxgear-fix" onclick="panelCfg(event)" title="Personalizar panel">⚙</button><div class="pxcfg side" id="pxcfg" onclick="event.stopPropagation()">'
-    +'<div class="pt">Secciones</div>'+pchk('tareas','Tareas pendientes')+pchk('estado','Estado de las DJ')+pchk('vistas','Vistas operativas')+pchk('gastos','Gastos del mes')+pchk('calendario','Calendario (mini)')+pchk('notas','Notas adhesivas')
+    +'<div class="pt">Secciones</div>'+pchk('tareas','Tareas pendientes')+pchk('estado','Estado de las DJ')+pchk('vistas','Vistas operativas')+pchk('gastos','Gastos del mes')+pchk('vencimientos','Próximos vencimientos')+pchk('calendario','Calendario (mini)')+pchk('notas','Notas adhesivas')
     +'<div class="pt" style="margin-top:10px">Indicadores</div>'+KPI_ORDER.map(pkpi).join('')
     +'<div class="pxcfg-note" style="font-size:11px;color:var(--muted);margin-top:10px">Arrastrá ⠿ para cambiar un bloque de lugar, y su borde derecho para cambiar el ancho (así podés poner bloques uno al lado del otro).</div>'
     +'<button class="btn-ghost btn-sm" style="margin-top:6px" onclick="panelResetGrid()">↺ Volver al orden por defecto</button></div>';
-  const blocks={kpis:panelKpisHtml(P),tareas:(P.tareas!==false)?wTareas():'',estado:(P.estado!==false)?wEstado():'',vistas:(P.vistas!==false)?wVistas():'',gastos:(P.gastos===true)?wGastos():'',notas:(P.notas===true)?wNotas():'',calendario:(P.calendario===true)?wMiniCal():''};
+  const blocks={kpis:panelKpisHtml(P),tareas:(P.tareas!==false)?wTareas():'',estado:(P.estado!==false)?wEstado():'',vistas:(P.vistas!==false)?wVistas():'',gastos:(P.gastos===true)?wGastos():'',vencimientos:(P.vencimientos===true)?wVencimientos():'',notas:(P.notas===true)?wNotas():'',calendario:(P.calendario===true)?wMiniCal():''};
   const top='<div class="hero"><div class="hero-in"><div><div class="hero-g">'+greeting()+', '+nombreSaludo()+'</div><div class="hero-d">'+fecha+'</div></div><img class="hero-logo" src="'+MONOGRAMA+'" alt=""></div></div>';
   let list=P.order.map(function(k){var c=blocks[k];if(!c)return '';return '<div class="pblock" draggable="true" data-b="'+k+'" style="grid-column:span '+pbSpan(k)+'" ondragstart="pbDragStart(event)" ondragover="pbDragOver(event)" ondrop="pbDrop(event)" ondragend="pbDragEnd(event)"><span class="pdrag" title="Arrastrar para mover">⠿</span><span class="presize" title="Arrastrá para cambiar el ancho" onmousedown="pbResizeStart(event,\''+k+'\')"></span><div class="pblock-c">'+c+'</div></div>';}).join('');
   $('#view-panel').innerHTML=top+cfg+'<div id="pblocks">'+list+'</div>';
@@ -63,7 +64,7 @@ function wMiniCal(){
   var ev=calEventsMap();
   return '<div class="card"><div class="card-head"><h3>Calendario</h3><div style="display:flex;gap:8px;align-items:center">'+calViewSeg()+'<button class="btn btn-sm" onclick="switchView(\'cal\')">Abrir →</button></div></div><div class="card-body"><div class="cal-head" style="margin-bottom:10px"><button onclick="calNavG(-1)">‹</button><div class="cal-title" style="font-size:15px;min-width:130px">'+calTitleG()+'</div><button onclick="calNavG(1)">›</button><button onclick="calToday()" style="width:auto;padding:0 10px;font-size:11px;font-weight:700">Hoy</button></div>'+calBody(ev,true)+'</div></div>';
 }
-function pchk(k,l){const P=Store.data.panel;const on=(k==='notas'?P.notas===true:P[k]!==false);return '<label><input type="checkbox" '+(on?'checked':'')+' onchange="panelSet(\''+k+'\',this.checked)"> '+l+'</label>';}
+function pchk(k,l){const P=Store.data.panel;const on=(k==='notas'||k==='vencimientos'||k==='gastos')?P[k]===true:P[k]!==false;return '<label><input type="checkbox" '+(on?'checked':'')+' onchange="panelSet(\''+k+'\',this.checked)"> '+l+'</label>';}
 function panelSet(k,v){Store.data.panel[k]=v;Store.save();renderPanel();}
 function panelCfg(e){e.stopPropagation();$('#pxcfg').classList.toggle('open');}
 function kpi(l,n,f,c){return '<div class="kpi '+c+'"><div class="k-label">'+l+'</div><div class="k-num">'+n+'</div><div class="k-foot">'+f+'</div></div>';}
@@ -176,3 +177,37 @@ function noteEdit(id){
 }
 function noteSetColor(c){_noteColor=c;var box=document.getElementById('note-compose');if(box)box.style.background=c;document.querySelectorAll('.ncol').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-c')===c);});}
 function delNote(id){Store.data.notes=Store.all('notes').filter(n=>n.id!==id);Store.save();renderPanel();}
+
+/* Bloque «Próximos vencimientos»: los de DGI y BPS que le corresponden, más los feriados cercanos.
+   Viene apagado: se prende desde ⚙ Personalizar panel. */
+function wVencimientos(){
+  var lista=vencProximos(5,true), hoy=today();
+  var fer=[];
+  [+hoy.slice(0,4),+hoy.slice(0,4)+1].forEach(function(y){
+    feriadosDelAnio(y).forEach(function(f){ if(f.iso>=hoy)fer.push(f); });
+  });
+  fer=fer.sort(function(a,b){return a.iso.localeCompare(b.iso);}).slice(0,2);
+
+  var cuerpo=lista.length
+    ? lista.map(function(v){
+        var dd=daysTo(v.iso), p=v.iso.split('-');
+        var reg=Store.all('impuestos').find(function(x){return x.gid===v.gid&&x.anio===v.anio&&x.mes===v.mes;});
+        var pago=reg&&reg.pagado;
+        return '<div class="pvenc-row'+(pago?' pagado':'')+'" style="--vc:'+v.grupo.color+'">'
+          +'<div class="pvenc-d"><div class="d">'+p[2]+'</div><div class="m">'+MESES[+p[1]-1]+'</div></div>'
+          +'<div class="pvenc-t"><b>'+esc(vencTexto(v))+'</b><span>'+esc(v.periodo)+'</span></div>'
+          +(pago?'<span class="pvenc-ok">✓ pago</span>'
+                :'<span class="pvenc-n" style="color:'+vencColor(dd)+'">'+(dd===0?'hoy':dd===1?'mañana':'en '+dd+' días')+'</span>')
+          +'</div>';
+      }).join('')
+    : '<div class="pgst-ok">Elegí tus vencimientos en ⋯ → Configuración</div>';
+
+  var feriadosHtml=fer.length&&vencCfg().feriados!==false
+    ? '<div class="pvenc-fer">'+fer.map(function(f){
+        return '<span data-tip="'+(f.laboral?'Feriado laborable':'Feriado no laborable')+'">'+fDate(f.iso).slice(0,5)+' · '+esc(f.nombre)+'</span>';
+      }).join('')+'</div>' : '';
+
+  return '<div class="card"><div class="card-head"><h3>Próximos vencimientos</h3>'
+    +'<button class="btn btn-sm" onclick="switchView(&quot;imp&quot;)">Impuestos →</button></div>'
+    +'<div class="card-body">'+cuerpo+feriadosHtml+'</div></div>';
+}

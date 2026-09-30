@@ -9,12 +9,12 @@
 const CLI_TIPOS_DEF=['Persona física','Empresa','Otro'];
 const EMP_TIPOS_DEF=['Ind. y Comercio','Pequeña empresa','Unipersonal'];
 // Listas de registros (cada elemento tiene su propio id).
-const COLS_LISTA=['clientes','dj','tareas','notes','cal','sueldos','honCli','honMov','gastos','cuotas'];
+const COLS_LISTA=['clientes','dj','tareas','notes','cal','sueldos','honCli','honMov','gastos','cuotas','impuestos'];
 // Datos sensibles: se guardan solo cifrados, nunca en claro.
 const CREDS=['passBps','passGub','codGub'];
 // La nota adhesiva con la que arranca la demostración (la recibe la clienta al entrar).
 const NOTA_BIENVENIDA='🌿 ¡Bienvenida, Lucía!\n\nEsta página está hecha para vos. Probá todo con confianza: los datos son de ejemplo.\n\n— Equipo Wydan';
-const PANEL_DEF=()=>({venc:true,tareas:true,estado:false,vistas:true,gastos:false,notas:true,calendario:true,kpis:['tareasPend','tareasVenc'],order:PANEL_ORDER_DEF.slice(),widths:Object.assign({},PANEL_WIDTHS_DEF)});
+const PANEL_DEF=()=>({venc:true,tareas:true,estado:false,vistas:true,gastos:false,vencimientos:false,notas:true,calendario:true,kpis:['tareasPend','tareasVenc'],order:PANEL_ORDER_DEF.slice(),widths:Object.assign({},PANEL_WIDTHS_DEF)});
 
 // Texto estable de un objeto (claves ordenadas): sirve para saber si algo cambió.
 function canon(v){
@@ -72,10 +72,12 @@ const Store={
     if(!Array.isArray(d.cliTipos)){ d.cliTipos=CLI_TIPOS_DEF.slice(); d.clientes.forEach(c=>{ if(c.tipo&&d.cliTipos.indexOf(c.tipo)<0)d.cliTipos.push(c.tipo); }); }
     if(!d.panel)d.panel=PANEL_DEF();
     if(!d.gcal)d.gcal={url:'',auto:true,last:0};
+    if(typeof vencCfg==='function')vencCfg(); // deja lista la configuración de vencimientos
     // DEMOSTRACIÓN: si una sección quedó sin ejemplos (por ejemplo, porque esta persona abrió el demo
     // con una versión anterior, cuando Gastos todavía no existía), se vuelven a cargar.
     d.gastos.forEach(function(g){ if(g.conIva){ if(!g.ivaModo)g.ivaModo='incluido'; if(!g.ivaDed)g.ivaDed=100; } });
     if(MODO_DEMO&&!d.gastos.length&&typeof seedGastos==='function'){ d.gastos=seedGastos(); d.cuotas=seedCuotas(d.gastos); }
+    if(MODO_DEMO&&!d.impuestos.length&&typeof seedImpuestos==='function')d.impuestos=seedImpuestos();
     // La nota de bienvenida se fue mejorando: si en este navegador quedó una versión anterior, se
     // actualiza sola. Solo toca esa nota, nunca una escrita por la clienta.
     var bv=d.notes.find(function(n){ return n.id==='n1'; });
@@ -127,5 +129,5 @@ function seed(){
   const gastos=seedGastos();
   const notes=[{id:'n1',text:NOTA_BIENVENIDA,color:'#fff3bf',date:''}];
   const h=seedHon();
-  return {clientes:cl,dj,tareas,grids,cal:[],notes:notes,gastos:gastos,cuotas:seedCuotas(gastos),gastoCats:GASTO_CATS_DEF.slice(),sueldos:seedSueldos(),sldSubs:defaultSubs(),sldHidden:[],empTipos:EMP_TIPOS_DEF.slice(),cliTipos:CLI_TIPOS_DEF.slice(),honCli:h.cli,honMov:h.mov,gcal:{url:'',auto:true,last:0},panel:PANEL_DEF()};
+  return {clientes:cl,dj,tareas,grids,cal:[],notes:notes,gastos:gastos,cuotas:seedCuotas(gastos),impuestos:seedImpuestos(),gastoCats:GASTO_CATS_DEF.slice(),sueldos:seedSueldos(),sldSubs:defaultSubs(),sldHidden:[],empTipos:EMP_TIPOS_DEF.slice(),cliTipos:CLI_TIPOS_DEF.slice(),honCli:h.cli,honMov:h.mov,gcal:{url:'',auto:true,last:0},panel:PANEL_DEF()};
 }

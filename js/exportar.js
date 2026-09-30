@@ -27,6 +27,7 @@ function expRows(kind,arg){
       })};
   }
   if(kind==='hon')return honExpRows();
+  if(kind==='imp')return impExpRows();
   return {title:'',cols:[],data:[]};
 }
 function doExport(kind,fmt,arg){if(kind==='clientes'&&Boveda.necesitaPara(Store.all('clientes'))){Boveda.pedir(function(){doExport(kind,fmt,arg);});return;}if(kind==='clientes'&&!confirm('El archivo va a incluir las contraseñas de los clientes, sin cifrar.\n\nGuardalo en un lugar seguro y no lo mandes por mail ni WhatsApp. ¿Exportar igual?'))return;var d=expRows(kind,arg);if(!d.data.length){toast('Nada para exportar');return;}if(fmt==='xls')exportExcel(d.title,d.cols,d.data);else exportPDF(d.title,d.cols,d.data);}

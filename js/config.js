@@ -17,7 +17,7 @@ function renderConfig(){
     +'</div></div>'
     +'<div class="card"><div class="card-head"><h3>🗓 Año fiscal</h3></div><div class="card-body">'
     +'<p class="muted-cell" style="font-size:13px;margin:6px 0 12px">Es el año que se abre por defecto en Declaraciones, Sueldos, Honorarios, Empresas y el Panel. En "Automático" se usa el año actual.</p>'
-    +'<select class="ysel" onchange="cfgSetAnio(this.value)">'+yo+'</select></div></div></div>';
+    +'<select class="ysel" onchange="cfgSetAnio(this.value)">'+yo+'</select></div></div></div>'+vencCfgCard();
   $('#view-config').innerHTML=h;
 }
 function cfgSetAnio(v){ Store.data.anioFiscal=v?+v:''; Store.save(); declAnio=null; honAnio=null; sldAnio=anioActivo(); toast(v?'Año fiscal: '+v:'Año fiscal automático'); renderConfig(); }

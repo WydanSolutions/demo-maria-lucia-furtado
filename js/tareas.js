@@ -23,6 +23,6 @@ function renderTareasTable(){
     +'<td>'+urgPill(t.urgencia)+'</td><td>'+plz+'</td>'
     +'<td>'+clkEst('tareas',t.id,t.estado,['Pendiente','En proceso','Hecha'])+'</td>'
     +'<td>'+actions('tarea',t.id)+'</td></tr>';}).join('') : emptyRow(8,'No hay tareas. Usá "+ Nueva tarea".');
-  $('#ta-table').innerHTML='<table><thead><tr><th></th><th>Tarea</th><th>Cliente</th><th>Etiqueta</th><th>Urgencia</th><th>Plazo</th><th>Estado</th><th></th></tr></thead><tbody>'+body+'</tbody></table>';
+  $('#ta-table').innerHTML='<table><thead><tr><th>Hecha</th><th>Tarea</th><th>Cliente</th><th>Etiqueta</th><th>Urgencia</th><th>Plazo</th><th>Estado</th><th></th></tr></thead><tbody>'+body+'</tbody></table>';
 }
 function toggleTarea(id){const o=Store.get('tareas',id);const done=o.estado==='Hecha';o.estado=done?'Pendiente':'Hecha';o.hecho=!done;Store.upsert('tareas',o);renderTareasTable();updateBadges();}

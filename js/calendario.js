@@ -9,6 +9,12 @@ function calEventsMap(){var ev={};var push=function(iso,txt,cls){if(!iso)return;
   Store.all('tareas').filter(function(x){return !x.hecho&&x.estado!=='Hecha';}).forEach(function(x){push(x.plazo,x.tarea,'ev-venc');});
   Store.all('cal').forEach(function(e){push(e.fecha,e.titulo,'');});
   (Store.data.gcalEvents||[]).forEach(function(e){push(e.fecha,'📅 '+e.titulo,'');});
+  // Vencimientos oficiales de DGI y BPS, y feriados. Se ven los grupos que no estén apagados.
+  [calY,calY+1,calY-1].forEach(function(y){
+    vencDelAnio(y,false).forEach(function(v){ if(!vencVisible(v.gid))return;
+      push(v.iso,(v.mio?'★ ':'')+vencTexto(v),v.mio?'ev-venc-mio':'ev-venc-of'); });
+    if(vencCfg().feriados!==false)feriadosDelAnio(y).forEach(function(f){ push(f.iso,f.nombre,'ev-feriado'); });
+  });
   return ev;}
 function isoOf(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
 // Texto completo de los eventos de un día, para verlo al pasar el mouse (el mini calendario lo corta).
@@ -29,8 +35,9 @@ function calBody(ev,compact){
 function calViewSeg(){return '<span class="gseg">'+[['dia','Día'],['semana','Semana'],['mes','Mes'],['anio','Año']].map(function(v){return '<button class="gv'+(calView===v[0]?' active':'')+'" onclick="setCalView(\''+v[0]+'\')">'+v[1]+'</button>';}).join('')+'</span>';}
 function renderCal(){
   const ev=calEventsMap();
-  let h='<div class="view-head"><div><h2>Calendario</h2><div class="sub">Vencimientos de DJ, tareas y eventos</div></div><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openCalEvent()">+ Evento</button></div></div>';
+  let h='<div class="view-head"><div><h2>Calendario</h2><div class="sub">Vencimientos de DJ, tareas, impuestos y feriados</div></div><div style="display:flex;gap:8px"><button class="btn btn-primary" onclick="openCalEvent()">+ Evento</button></div></div>';
   h+='<div class="cal-head"><button onclick="calNavG(-1)">‹</button><div class="cal-title">'+calTitleG()+'</div><button onclick="calNavG(1)">›</button><button onclick="calToday()" style="width:auto;padding:0 12px;font-size:12px;font-weight:700">Hoy</button><span style="margin-left:auto">'+calViewSeg()+'</span></div>';
+  h+=calLeyendaVenc();
   h+=calBody(ev,false);
   if(calView==='mes'||calView==='semana'){
     const up=[];
