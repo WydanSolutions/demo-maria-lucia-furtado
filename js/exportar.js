@@ -7,6 +7,23 @@ function expRows(kind,arg){
   if(kind==='sueldos'){var rows=sldRows(sldSub),sub=sldSubsList().find(function(s){return s.id===sldSub;}),sc=sldCols();return {title:'Sueldos · '+(sub?sub.name:'')+' · '+MESES_L[sldMes]+' '+sldAnio,cols:['Empresa','Estado'].concat(sc.map(function(c){return c.label;})),data:rows.map(function(r){return [r.empresa,r.estado].concat(sc.map(function(c){return c.type==='check'?(r[c.key]?'Sí':''):(r[c.key]||'');}));})};}
   // Clientes: todas las columnas de la ficha, contraseñas incluidas (pedido del cliente; se avisa antes de exportar).
   if(kind==='clientes'){var rows=_cliFiltered();return {title:'Info. Clientes',cols:['Nombre','Tipo','RUT','BPS','CI','Fecha nac.','Contraseña BPS','Contraseña gub.uy','Códigos gub.uy','WhatsApp','Correo','Dirección','Otros','Observaciones','Notas','Estado'],data:rows.map(function(c){return [c.nombre,c.tipo||'',c.rut||'',c.bps||'',c.ci||'',c.fnac?fDate(c.fnac):'',c.passBps||'',c.passGub||'',c.codGub||'',c.whatsapp||'',c.correo||'',c.direccion||'',c.fosmetal||'',c.otros||'',c.notas||'',c.archivado?'Archivado':'Activo'];})};}
+  if(kind==='gastos'){
+    var y=gstYear();
+    if(gstVista==='anual'){
+      var rows=[],porCat={},cats=[];
+      for(var m=0;m<12;m++){ gstFilasMes(y,m).forEach(function(f){ var c=(f.g.cat||'Sin categoría').trim(); if(!porCat[c]){porCat[c]=new Array(12).fill(0);cats.push(c);} porCat[c][m]+=f.importe||0; }); }
+      cats.forEach(function(c){ rows.push([c].concat(porCat[c].map(function(v){return v?numTxt(v):'';})).concat([numTxt(porCat[c].reduce(function(a,b){return a+b;},0))])); });
+      return {title:'Gastos del estudio '+y,cols:['Categoría'].concat(MESES).concat(['Total']),data:rows};
+    }
+    return {title:'Gastos del estudio · '+MESES_L[gstMes]+' '+y,
+      cols:['Fecha','Gasto','Categoría','Proveedor','Importe','Estado','Fecha de pago','Forma de pago','Medio','IVA incluido','N° factura','Notas'],
+      data:gstFiltradas().map(function(f){ var g=f.g;
+        return [fDate(f.fecha),g.concepto+(f.det?' ('+f.det+')':''),g.cat||'',g.proveedor||'',numTxt(f.importe),
+          f.pagado?'Pagado':'Pendiente',fDate(f.tipo==='cuota'?f.c.fechaPago:g.fechaPago),
+          g.forma==='credito'?('Crédito '+g.cuotas+' cuotas'):'Contado',g.medio||'',
+          f.tipo==='cuota'?'':numTxt(honNum(g.iva)),g.factura||'',g.notas||''];
+      })};
+  }
   if(kind==='hon')return honExpRows();
   return {title:'',cols:[],data:[]};
 }

@@ -8,9 +8,10 @@ var KPI_DEFS={
   tareasVenc:{label:'Tareas vencidas',foot:'pasó el plazo',cls:'k-alerta',calc:function(){return panelTasks().filter(function(t){return t.plazo&&daysTo(t.plazo)<0;}).length;}},
   sueldosPend:{label:'Sueldos del mes',foot:'sin enviar',cls:'',calc:function(){var mm=new Date().getMonth(),yy=anioActivo();return Store.all('sueldos').filter(function(r){return r.mes===mm&&r.anio===yy&&r.estado!=='Enviado';}).length;}},
   djPend:{label:'DJ del año',foot:'pendientes',cls:'',calc:function(){return Store.all('dj').filter(function(d){return d.anio===anioActivo()&&d.estado!=='Presentada';}).length;}},
-  clientesAct:{label:'Clientes activos',foot:'en cartera',cls:'k-green',calc:function(){return Store.all('clientes').filter(function(c){return !c.archivado;}).length;}}
+  clientesAct:{label:'Clientes activos',foot:'en cartera',cls:'k-green',calc:function(){return Store.all('clientes').filter(function(c){return !c.archivado;}).length;}},
+  gastosPend:{label:'Gastos sin pagar',foot:'este mes',cls:'k-amber',calc:function(){var n=new Date();return gstFilasMes(n.getFullYear(),n.getMonth()).filter(function(f){return !f.pagado;}).length;}}
 };
-var KPI_ORDER=['tareasPend','tareasVenc','sueldosPend','djPend','clientesAct'];
+var KPI_ORDER=['tareasPend','tareasVenc','sueldosPend','djPend','clientesAct','gastosPend'];
 function pkpi(k){var on=(Store.data.panel.kpis||[]).indexOf(k)>=0;return '<label><input type="checkbox" '+(on?'checked':'')+' onchange="panelKpi(\''+k+'\',this.checked)"> '+KPI_DEFS[k].label+'</label>';}
 function panelKpi(k,on){var a=(Store.data.panel.kpis||[]).filter(function(x){return x!==k;});if(on)a.push(k);Store.data.panel.kpis=a;Store.save();renderPanel();}
 // Nombre con el que saluda el Panel (sale de "Mi perfil").
@@ -41,16 +42,16 @@ function pbResizeStart(e,k){
 function renderPanel(){
   const P=Store.data.panel; if(!P.kpis)P.kpis=['tareasPend','tareasVenc'];
   if(!Array.isArray(P.order)||!P.order.length) P.order=PANEL_ORDER_DEF.slice();
-  ['kpis','tareas','estado','vistas','notas','calendario'].forEach(function(k){if(P.order.indexOf(k)<0)P.order.push(k);});
+  ['kpis','tareas','estado','vistas','gastos','notas','calendario'].forEach(function(k){if(P.order.indexOf(k)<0)P.order.push(k);});
   const now=new Date();
   const fecha=now.toLocaleDateString('es-UY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   // Botón "Personalizar panel": fijo al costado derecho, a mitad de altura de la pantalla.
   const cfg='<button class="pxgear-fix" onclick="panelCfg(event)" title="Personalizar panel">⚙</button><div class="pxcfg side" id="pxcfg" onclick="event.stopPropagation()">'
-    +'<div class="pt">Secciones</div>'+pchk('tareas','Tareas pendientes')+pchk('estado','Estado de las DJ')+pchk('vistas','Vistas operativas')+pchk('calendario','Calendario (mini)')+pchk('notas','Notas adhesivas')
+    +'<div class="pt">Secciones</div>'+pchk('tareas','Tareas pendientes')+pchk('estado','Estado de las DJ')+pchk('vistas','Vistas operativas')+pchk('gastos','Gastos del mes')+pchk('calendario','Calendario (mini)')+pchk('notas','Notas adhesivas')
     +'<div class="pt" style="margin-top:10px">Indicadores</div>'+KPI_ORDER.map(pkpi).join('')
     +'<div class="pxcfg-note" style="font-size:11px;color:var(--muted);margin-top:10px">Arrastrá ⠿ para cambiar un bloque de lugar, y su borde derecho para cambiar el ancho (así podés poner bloques uno al lado del otro).</div>'
     +'<button class="btn-ghost btn-sm" style="margin-top:6px" onclick="panelResetGrid()">↺ Volver al orden por defecto</button></div>';
-  const blocks={kpis:panelKpisHtml(P),tareas:(P.tareas!==false)?wTareas():'',estado:(P.estado!==false)?wEstado():'',vistas:(P.vistas!==false)?wVistas():'',notas:(P.notas===true)?wNotas():'',calendario:(P.calendario===true)?wMiniCal():''};
+  const blocks={kpis:panelKpisHtml(P),tareas:(P.tareas!==false)?wTareas():'',estado:(P.estado!==false)?wEstado():'',vistas:(P.vistas!==false)?wVistas():'',gastos:(P.gastos===true)?wGastos():'',notas:(P.notas===true)?wNotas():'',calendario:(P.calendario===true)?wMiniCal():''};
   const top='<div class="hero"><div class="hero-in"><div><div class="hero-g">'+greeting()+', '+nombreSaludo()+'</div><div class="hero-d">'+fecha+'</div></div><img class="hero-logo" src="'+MONOGRAMA+'" alt=""></div></div>';
   let list=P.order.map(function(k){var c=blocks[k];if(!c)return '';return '<div class="pblock" draggable="true" data-b="'+k+'" style="grid-column:span '+pbSpan(k)+'" ondragstart="pbDragStart(event)" ondragover="pbDragOver(event)" ondrop="pbDrop(event)" ondragend="pbDragEnd(event)"><span class="pdrag" title="Arrastrar para mover">⠿</span><span class="presize" title="Arrastrá para cambiar el ancho" onmousedown="pbResizeStart(event,\''+k+'\')"></span><div class="pblock-c">'+c+'</div></div>';}).join('');
   $('#view-panel').innerHTML=top+cfg+'<div id="pblocks">'+list+'</div>';
@@ -135,6 +136,28 @@ function wVistas(){
   let h='<div class="vistas-head"><span style="font-family:var(--f-display);font-size:17px;color:var(--azul-osc)">Vistas operativas</span><span style="display:flex;gap:10px;align-items:center"><select class="filt" onchange="setVistaMonth(this.value)">'+MESES_L.map(function(m,i){return '<option value="'+i+'"'+(i===vistaMonth?' selected':'')+'>'+m+'</option>';}).join('')+'</select><span class="gseg"><button class="gv'+(mode==='simple'?' active':'')+'" onclick="setVistaMode(\'simple\')">Simple</button><button class="gv'+(mode==='detallada'?' active':'')+'" onclick="setVistaMode(\'detallada\')">Detallada</button></span></span></div>';
   h+= mode==='detallada'? vistaDetallada() : ('<div class="gridw">'+vistaSimpleCards()+'</div>');
   return h;
+}
+// Bloque "Gastos del mes" (⚙ Personalizar panel). Viene apagado: lo prende quien lo quiera.
+function wGastos(){
+  var n=new Date(), y=n.getFullYear(), m=n.getMonth();
+  var filas=gstFilasMes(y,m), t=gstTotales(filas);
+  var pend=filas.filter(function(f){return !f.pagado;}).slice(0,3);
+  var lista=pend.length
+    ? pend.map(function(f){
+        return '<div class="pgst-row"><span class="gst-ico">'+gstIco(f.g.cat)+'</span>'
+          +'<div class="pgst-t"><b>'+esc(f.g.concepto)+'</b>'+(f.det?'<span class="gst-cuota">'+f.det+'</span>':'')
+          +'<span class="pgst-d">vence el '+fDate(f.fecha)+'</span></div>'
+          +'<b class="pgst-n">'+money(f.importe)+'</b></div>';
+      }).join('')
+    : '<div class="pgst-ok">✓ No queda nada por pagar este mes</div>';
+  return '<div class="card"><div class="card-head"><h3>Gastos del mes</h3>'
+    +'<button class="btn btn-sm btn-primary" onclick="gastoForm()">+ Gasto</button></div>'
+    +'<div class="card-body"><div class="kpis kpis-2" style="margin-bottom:14px">'
+    +kpiM('Total de '+MESES_L[m],money(t.total),'','')
+    +kpiM('Falta pagar',money(t.pen),t.nPen?(t.nPen+' sin pagar'):'todo al día',t.pen?'k-amber':'k-green')
+    +'</div>'+lista
+    +(filas.length>pend.length&&pend.length?'<button class="btn btn-sm" style="margin-top:12px" onclick="switchView(&quot;gastos&quot;)">Ver todos los gastos →</button>':'')
+    +'</div></div>';
 }
 var NOTE_COLORS=['#fff3bf','#ffd8e4','#d3f0dd','#d6e6fb','#eadcf7','#d3ecec'];
 var _noteColor;

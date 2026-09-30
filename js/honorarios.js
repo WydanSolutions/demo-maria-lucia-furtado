@@ -19,9 +19,6 @@ function seedHon(){
   for(var m=0;m<mm;m++) cli.forEach(function(r){ if(r.id==='h3'&&m>=mm-2)return; mov.push({id:'hm'+r.id+'-'+m,rowId:r.id,anio:yy,mes:m,factura:r.id==='h2'?String(100+m):'',recibo:'',fecha:yy+'-'+String(m+1).padStart(2,'0')+'-10',medio:r.medio}); });
   return {cli:cli,mov:mov};
 }
-function honNum(v){if(v===''||v==null)return null;if(typeof v==='number')return v;var n=parseFloat(String(v).replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.'));return isNaN(n)?null:n;}
-function numTxt(n){return n==null||n===''?'':Number(n).toLocaleString('es-UY',{maximumFractionDigits:2});}
-function money(n){return '$ '+numTxt(n||0);}
 function honRows(){var q=honQ.toLowerCase();return Store.all('honCli').filter(function(r){return !!r.archivado===honArch&&(!q||cliNameOr(r.clienteId).toLowerCase().includes(q));}).sort(function(a,b){return cliNameOr(a.clienteId).localeCompare(cliNameOr(b.clienteId));});}
 function honMovOf(rowId,y,m){return Store.all('honMov').find(function(x){return x.rowId===rowId&&x.anio===y&&x.mes===m;});}
 // Cálculo de un mes para una fila: importe, IVA, total y estado.

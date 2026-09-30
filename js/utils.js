@@ -24,6 +24,11 @@ const DR_NAC=' min="1900-01-01" max="2099-12-31"'; // fechas de nacimiento
 function dateOk(el){if(!el.value)return true;var min=el.min||'2000-01-01',max=el.max||'2099-12-31';if(el.value<min||el.value>max){toast('Revisá la fecha: tiene que estar entre '+fDate(min)+' y '+fDate(max));return false;}return true;}
 function modalDatesOk(){return !Array.from(document.querySelectorAll('#modal-body input[type="date"]')).some(function(i){return !dateOk(i);});}
 
+/* ===== números y plata (las usan Honorarios y Gastos) ===== */
+function honNum(v){if(v===''||v==null)return null;if(typeof v==='number')return v;var n=parseFloat(String(v).replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.'));return isNaN(n)?null:n;}
+function numTxt(n){return n==null||n===''?'':Number(n).toLocaleString('es-UY',{maximumFractionDigits:2});}
+function money(n){return '$ '+numTxt(n||0);}
+
 /* ===== año de trabajo (el año fiscal se puede fijar a mano en Configuración) ===== */
 function anioActivo(){return +Store.data.anioFiscal||new Date().getFullYear();}
 function yearSelect(sel,fn){var now=new Date().getFullYear(),min=Math.min(2024,sel,anioActivo()),max=Math.max(now+1,sel,anioActivo()),o='';for(var y=max;y>=min;y--)o+='<option'+(y===sel?' selected':'')+'>'+y+'</option>';return '<select class="ysel" title="Año" onchange="'+fn+'(+this.value)">'+o+'</select>';}
