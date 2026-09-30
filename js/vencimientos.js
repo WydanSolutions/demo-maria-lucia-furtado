@@ -1,23 +1,23 @@
 /*
- * Impuestos y aportes: cuáles le corresponden, cuándo vencen, y los feriados del año.
+ * Impuestos: cuáles le corresponden, cuándo vencen, y los feriados del año.
  * (La pantalla para configurarlos está en config.js.)
  *
- * Hay dos clases de obligación:
- *  1) LAS OFICIALES (VENC_GRUPOS): las de DGI y BPS, con el calendario del año ya cargado.
- *  2) LAS SUYAS (venc.propios): las que no tienen un calendario que podamos cargar (Caja de
- *     Profesionales, Fondo de Solidaridad, la DJ anual de IRPF, BPS de empresas…). Vienen con el
- *     nombre puesto, y ella define cada cuánto vencen y qué día. También puede agregar otras.
- * Todas arrancan APAGADAS salvo el IVA, que es el único que la página calcula sola: el resto
- * las marca ella (⋯ → Configuración).
+ * Son las obligaciones de DGI y BPS, con el calendario del año ya cargado. Arrancan todas
+ * APAGADAS salvo el IVA, que es el único que la página calcula sola: el resto las marca ella
+ * (⋯ → Configuración).
  *
- * ⚠ Las fechas oficiales son una AYUDA, no la fuente oficial: DGI las corrige durante el año por
+ * Hubo un segundo tipo, las que definía ella sin calendario (Caja de Profesionales, Fondo de
+ * Solidaridad…): se sacaron junto con los cuadros de Impuestos que las mostraban. Están en el
+ * historial de Git por si se retoman.
+ *
+ * ⚠ Las fechas son una AYUDA, no la fuente oficial: DGI las corrige durante el año por
  * resoluciones nuevas (en 2026 cambió seis). Por eso cada fecha se puede cambiar a mano y cada
  * grupo se marca «Revisado» cuando ella lo confirma.
  * Tomadas el 30/09/2026 de la Resolución DGI 2284/025, del cuadro actualizado de gub.uy y de
  * bps.gub.uy (Servicios Personales).
  */
 
-/* ===== 1) LAS QUE TIENEN CALENDARIO OFICIAL CARGADO ===== */
+/* ===== LAS OBLIGACIONES, CON SU CALENDARIO OFICIAL ===== */
 const VENC_GRUPOS=[
   {id:'dgi_sp',     org:'DGI', nombre:'IVA (Servicios Personales)', corto:'IVA Serv. Pers.', tipo:'bimestral', color:'var(--v-sp)',
    nota:'Pagos a cuenta de IVA, por el bimestre anterior. Es el único que la página calcula sola, con lo cargado en Honorarios y Gastos.'},
@@ -34,22 +34,6 @@ const VENC_GRUPOS=[
    nota:'Aportes y anticipos Fonasa, por el mes anterior. Solo si aportás a BPS: los profesionales universitarios independientes suelen aportar a la Caja de Profesionales.'},
 ];
 
-/* ===== 2) LAS QUE DEFINE ELLA (vienen con el nombre puesto y sin fecha) ===== */
-const VENC_PROPIOS_DEF=[
-  {id:'p_cjppu',    org:'CJPPU', nombre:'Caja de Profesionales', tipo:'bimestral', dia:0, mes:0,
-   nota:'Aporte jubilatorio de los profesionales universitarios independientes. Es un monto fijo según la categoría: cargalo acá abajo y se repite solo.'},
-  {id:'p_fondo',    org:'Fondo de Solidaridad', nombre:'Aporte anual', tipo:'anual', dia:0, mes:0,
-   nota:'Aporte anual de los egresados universitarios. Es un monto fijo en BPC.'},
-  {id:'p_fondo_ad', org:'Fondo de Solidaridad', nombre:'Adicional', tipo:'anual', dia:0, mes:0,
-   nota:'El adicional del Fondo de Solidaridad, si te corresponde.'},
-  {id:'p_bps_emp',  org:'BPS', nombre:'Empresas (con empleados)', tipo:'mensual', dia:0,
-   nota:'Solo si tenés empleados. La fecha depende del último dígito del número de empresa.'},
-  {id:'p_irpf_dj',  org:'DGI', nombre:'IRPF · Declaración anual', tipo:'anual', dia:0, mes:6,
-   nota:'La fecha depende del último dígito de la cédula: ponela vos.'},
-  {id:'p_irae',     org:'DGI', nombre:'IRAE', tipo:'anual', dia:0, mes:0,
-   nota:'Si alguna vez tributás por IRAE en lugar de IRPF.'},
-];
-const VENC_TIPOS={mensual:'Todos los meses',bimestral:'Cada dos meses',anual:'Una vez al año'};
 
 /* Los días de cada mes, por año y por grupo. Los meses van de 0 (enero) a 11 (diciembre).
    En los bimestrales solo hay pago en los meses de la lista: [mes, día]. */
@@ -89,7 +73,7 @@ const FERIADOS={
 };
 
 /* ===== CONFIGURACIÓN DE LA USUARIA ===== */
-const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],importes:{},propios:[],abiertos:[],meses:[],feriados:true,frecuencia:'bimestral'};
+const VENC_CFG_DEF={grupos:['dgi_sp'],editadas:{},confirmadas:{},ocultas:[],abiertos:[],feriados:true,frecuencia:'bimestral'};
 function vencCfg(){
   var d=Store.data;
   if(!d)return VENC_CFG_DEF; // todavía se están armando los datos
@@ -98,32 +82,22 @@ function vencCfg(){
   if(!Array.isArray(d.venc.grupos))d.venc.grupos=['dgi_sp'];
   if(!d.venc.editadas||typeof d.venc.editadas!=='object')d.venc.editadas={};
   if(!d.venc.confirmadas||typeof d.venc.confirmadas!=='object')d.venc.confirmadas={};
-  if(!d.venc.importes||typeof d.venc.importes!=='object')d.venc.importes={};
   if(!Array.isArray(d.venc.ocultas))d.venc.ocultas=[];
   if(!Array.isArray(d.venc.abiertos))d.venc.abiertos=[];
-  if(!Array.isArray(d.venc.meses))d.venc.meses=[];
-  if(!Array.isArray(d.venc.propios))d.venc.propios=VENC_PROPIOS_DEF.map(function(p){ return Object.assign({},p); });
   if(d.venc.feriados!==false)d.venc.feriados=true;
   return d.venc;
 }
 
-/* Todas las obligaciones en una sola lista: las oficiales y las suyas. */
-function vencPropios(){ return vencCfg().propios||[]; }
-function vencGruposTodos(){
-  return VENC_GRUPOS.concat(vencPropios().map(function(p){
-    return Object.assign({corto:p.nombre,color:'var(--v-propio)',propio:true},p);
-  }));
-}
-function vencGrupo(id){ return vencGruposTodos().find(function(g){ return g.id===id; })||null; }
+/* Las obligaciones con calendario oficial. (Antes se sumaban acá las que definía ella; se sacaron
+   junto con los cuadros de Impuestos que las usaban.) */
+function vencGruposTodos(){ return VENC_GRUPOS; }
+function vencGrupo(id){ return VENC_GRUPOS.find(function(g){ return g.id===id; })||null; }
 function vencNombre(g){ return g.org+' · '+g.nombre; }
 
 function vencEsMio(gid){ return vencCfg().grupos.indexOf(gid)>=0; }
 function vencVisible(gid){ return vencCfg().ocultas.indexOf(gid)<0; }
 function vencConfirmado(gid,y){ return vencCfg().confirmadas[gid+'|'+y]===true; }
 function vencClave(gid,y,m){ return gid+'|'+y+'|'+m; }
-/* Importe fijo que se repite (Caja de Profesionales, Fondo de Solidaridad…). */
-function vencImporte(gid){ var v=vencCfg().importes[gid]; return v==null||v===''?null:v; }
-function vencSetImporte(gid,v){ var n=honNum(v); var c=vencCfg(); if(n===null)delete c.importes[gid]; else c.importes[gid]=n; Store.save(); }
 
 /* La fecha de un grupo en un mes: la que puso ella si la cambió, si no la que corresponda.
    Devuelve null si ese grupo no vence ese mes, o si todavía no tiene día definido. */
@@ -136,12 +110,6 @@ function vencFecha(gid,y,m){
   var armar=function(dia){ if(!dia)return null; var ult=new Date(y,m+1,0).getDate();
     return y+'-'+String(m+1).padStart(2,'0')+'-'+String(Math.min(dia,ult)).padStart(2,'0'); };
 
-  if(g.propio){
-    if(!g.dia)return null;                                      // todavía no puso el día
-    if(g.tipo==='mensual')  return armar(g.dia);
-    if(g.tipo==='bimestral')return (m%2===(+g.mes||0)%2)?armar(g.dia):null;
-    return m===(+g.mes||0)?armar(g.dia):null;                   // anual
-  }
   var t=VENC_TABLA[y]; if(!t)return null;
   var datos=t[g.tablaDe||gid]; if(!datos)return null;
   if(g.tipo==='bimestral'){
@@ -185,9 +153,7 @@ function vencTexto(v){ return v.grupo.org+' · '+v.grupo.corto; }
 
 /* ===== LA FILA DE COLORES ARRIBA DEL CALENDARIO ===== */
 function calLeyendaVenc(){
-  // Las obligaciones que definió ella solo aparecen si están marcadas: si no, la fila se llenaría
-  // de cosas que no usa.
-  var chips=vencGruposTodos().filter(function(g){ return !g.propio||vencEsMio(g.id); }).map(function(g){
+  var chips=VENC_GRUPOS.map(function(g){
       var on=vencVisible(g.id), mio=vencEsMio(g.id);
       return '<button class="vchip'+(on?'':' off')+(mio?' mio':'')+'" onclick="vencToggleGrupo(\''+g.id+'\')"'
         +' data-tip="'+esc(g.nota||'')+'"><i style="background:'+g.color+'"></i>'+(mio?'★ ':'')+esc(g.org+' · '+g.corto)+'</button>';

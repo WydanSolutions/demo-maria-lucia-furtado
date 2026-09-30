@@ -1,16 +1,16 @@
 /*
  * Subpestaña: Impuestos (dentro de Finanzas).
  *
- * TODO EN UN SOLO CUADRO (pedido de la usuaria, 30/09/2026): el registro del año tiene una fila por
- * período y ahí mismo están el IVA facturado, el IVA de gastos, lo que da a pagar de IVA, el IRPF,
- * el vencimiento, el estado y el comprobante. El IVA facturado y el de gastos los calcula la página;
- * el IVA a pagar y el IRPF los escribe ella (el IVA viene sugerido).
+ * UN SOLO CUADRO (decisión de la usuaria, 30/09/2026): el «Registro del año», con una fila por
+ * período. Ahí está todo: el IVA facturado, el IVA de gastos, lo que da a pagar de IVA, el IRPF,
+ * el vencimiento, el estado y el comprobante.
+ *   - El IVA facturado y el IVA de gastos los calcula la página.
+ *   - El IVA a pagar y el IRPF los escribe ella (el IVA viene sugerido).
+ * IVA e IRPF van juntos en la misma fila porque vencen el mismo día: DGI los pone en la misma
+ * línea de su cuadro de Servicios Personales.
  *
- * IVA e IRPF van juntos en la misma fila porque vencen el mismo día: DGI los pone en la misma línea
- * de su cuadro de Servicios Personales.
- *
- * Abajo, un segundo cuadro con el resto de los impuestos y aportes que haya marcado (Caja de
- * Profesionales, Fondo de Solidaridad…), que tienen sus propias fechas.
+ * Antes hubo otros dos cuadros («Por mes» y «Otros impuestos y aportes») y una calculadora de IVA;
+ * los tres se sacaron a pedido de la usuaria. Están en el historial de Git por si se retoman.
  */
 /* ===== IMPUESTOS ===== */
 var impAnio=null;
@@ -32,14 +32,14 @@ function impIvaVentas(y,m){
 function impIvaCompras(y,m){ return Math.round(gstIvaDelMes(y,m).ded*100)/100; }
 
 /* Los períodos del año, según trabaje mensual o bimestral.
-   En bimestral, el bimestre i (meses 2i y 2i+1) vence en el mes 2i+2, igual que el cuadro de DGI:
-   Enero-Febrero vence en marzo, y Noviembre-Diciembre en enero del año siguiente. */
+   El IVA de Servicios Personales vence por bimestre: el bimestre i (meses 2i y 2i+1) vence en el
+   mes 2i+2, igual que el cuadro de DGI. Enero-Febrero vence en marzo, y Noviembre-Diciembre en
+   enero del año siguiente (ese queda sin fecha hasta que DGI publique el año nuevo).
+   En la vista mensual, cada mes muestra el vencimiento del bimestre al que pertenece. */
 function impPeriodos(y){
   var bim=impFrecuencia()==='bimestral', out=[];
   for(var i=0;i<(bim?6:12);i++){
     var meses=bim?[i*2,i*2+1]:[i];
-    // El IVA de Servicios Personales vence por bimestre. En la vista mensual, cada mes muestra el
-    // vencimiento del bimestre al que pertenece: enero y febrero vencen los dos en marzo.
     var b=bim?i:Math.floor(i/2), vAnio=(b===5?y+1:y), vMes=(b*2+2)%12;
     var v=0,c=0;
     meses.forEach(function(m){ v+=impIvaVentas(y,m); c+=impIvaCompras(y,m); });
@@ -52,9 +52,9 @@ function impPeriodos(y){
 }
 
 /* ===== EL REGISTRO ===== */
-/* Una fila por período (tipo 'periodo'), más las de los otros impuestos y aportes (tipo 'otro'). */
+/* Una fila por período. Se crea recién cuando ella escribe algo. */
 function impFilaPeriodo(y,pi,crear){
-  var f=Store.all('impuestos').find(function(x){ return x.tipo==='periodo'&&x.anio===y&&x.pi===pi; });
+  var f=Store.all('impuestos').find(function(x){ return x.anio===y&&x.pi===pi; });
   if(!f&&crear){
     f={id:'ip'+y+'-'+pi+'-'+Math.floor(Math.random()*999),tipo:'periodo',anio:y,pi:pi,
        iva:null,irpf:null,venc:'',pagado:false,fechaPago:'',comprobante:'',notas:''};
@@ -62,16 +62,12 @@ function impFilaPeriodo(y,pi,crear){
   }
   return f;
 }
-function impOtros(y){
-  return Store.all('impuestos').filter(function(x){ return x.tipo!=='periodo'&&x.anio===y; })
-    .sort(function(a,b){ return (a.venc||'').localeCompare(b.venc||''); });
-}
 function impEstado(x){ return x.pagado?'pag':(x.venc&&daysTo(x.venc)<0?'venc':'pen'); }
 function impTotalFila(x){ return (honNum(x.iva)||0)+(honNum(x.irpf)||0); }
+// Para el contador rojo de la subpestaña y el indicador del Panel.
 function impVencidos(){ return Store.all('impuestos').filter(function(x){
-  return impEstado(x)==='venc' && (x.tipo==='periodo'?impTotalFila(x)>0:true); }); }
+  return impEstado(x)==='venc' && impTotalFila(x)>0; }); }
 
-/* Guardar un dato del período (crea la fila la primera vez que escribe algo). */
 function impSetPer(y,pi,campo,valor){
   var f=impFilaPeriodo(y,pi,true);
   f[campo]=(campo==='iva'||campo==='irpf')?honNum(valor):valor;
@@ -82,6 +78,8 @@ function impTogglePagoPer(y,pi){
   f.pagado=!f.pagado; if(f.pagado&&!f.fechaPago)f.fechaPago=today(); if(!f.pagado)f.fechaPago='';
   Store.save(); renderImpuestos();
 }
+function impRefrescar(){ var k=document.getElementById('imp-kpis'); if(k)k.innerHTML=impKpisHtml(impYear()); }
+
 /* Rellena el IVA de los períodos que estén vacíos con lo que calculó la página. */
 function impUsarCalculado(){
   var y=impYear(), n=0;
@@ -95,38 +93,6 @@ function impUsarCalculado(){
   toast(n?('✓ '+n+' período'+(n===1?'':'s')+' completado'+(n===1?'':'s')):'Ya estaban todos completos');
 }
 
-/* Las otras obligaciones (las que no son IVA/IRPF de Servicios Personales). */
-function impSet(id,f,v){ var x=Store.get('impuestos',id); if(!x)return; x[f]=v; Store.upsert('impuestos',x); impRefrescar(); }
-function impTogglePago(id){
-  var x=Store.get('impuestos',id); if(!x)return;
-  x.pagado=!x.pagado; if(x.pagado&&!x.fechaPago)x.fechaPago=today(); if(!x.pagado)x.fechaPago='';
-  Store.upsert('impuestos',x); renderImpuestos();
-}
-function impBorrar(id){
-  var x=Store.get('impuestos',id); if(!x)return;
-  if(!confirm('¿Borrar «'+(x.concepto||'este registro')+'» de '+(x.periodo||'')+'?'))return;
-  Store.remove('impuestos',id); renderImpuestos(); toast('Borrado');
-}
-function impRefrescar(){ var k=document.getElementById('imp-kpis'); if(k)k.innerHTML=impKpisHtml(impYear()); }
-
-/* Crea las filas de los impuestos y aportes que haya marcado, sin repetir.
-   El IVA y el IRPF de Servicios Personales no entran acá: van en el cuadro de períodos. */
-function impTraerVencimientos(){
-  var y=impYear(), lista=vencDelAnio(y,true).filter(function(v){ return v.gid!=='dgi_sp'&&v.gid!=='dgi_irpf'; });
-  if(!lista.length){ toast('No tenés otros impuestos marcados (⋯ → Configuración)'); return; }
-  var nuevos=0;
-  lista.forEach(function(v){
-    var ya=Store.all('impuestos').some(function(x){ return x.tipo!=='periodo'&&x.anio===y&&x.mes===v.mes&&x.gid===v.gid; });
-    if(ya)return;
-    Store.data.impuestos.push({id:'i'+Date.now()+Math.floor(Math.random()*9999),tipo:'otro',anio:y,mes:v.mes,gid:v.gid,
-      concepto:vencNombre(v.grupo),periodo:v.periodo,importe:vencImporte(v.gid),venc:v.iso,
-      pagado:false,fechaPago:'',comprobante:'',notas:''});
-    nuevos++;
-  });
-  Store.save(); renderImpuestos();
-  toast(nuevos?('✓ '+nuevos+' vencimiento'+(nuevos===1?'':'s')+' agregado'+(nuevos===1?'':'s')):'Ya estaban todos cargados');
-}
-
 /* ===== LA PANTALLA ===== */
 function renderImpuestos(){
   var y=impYear();
@@ -135,16 +101,13 @@ function renderImpuestos(){
     +'<span class="sld-top">'+yearSelect(y,'setImpAnio')
     +'<span class="gseg"><button class="gv'+(impFrecuencia()==='bimestral'?' active':'')+'" onclick="setImpFrecuencia(\'bimestral\')">Bimestral</button>'
     +'<button class="gv'+(impFrecuencia()==='mensual'?' active':'')+'" onclick="setImpFrecuencia(\'mensual\')">Mensual</button></span>'
-    +expBtns('imp')+'<button class="btn btn-sm btn-primary" onclick="impForm()">+ Registro</button></span></div>';
+    +expBtns('imp')+'</span></div>';
   h+='<div id="imp-kpis">'+impKpisHtml(y)+'</div>';
   h+=impTablaPeriodos(y);
-  h+=impTablaPorMes(y);
-  h+=impTablaOtros(y);
-  h+=impProximos();
   h+='<div class="hon-foot">💡 El <b>IVA facturado</b> sale de Honorarios y cuenta solo las filas con N° de factura. '
     +'El <b>IVA de gastos</b> sale de Gastos y ya contempla el 50% cuando corresponde. Lo que escribas en '
     +'<b>IVA a pagar</b> e <b>IRPF</b> manda sobre lo calculado: la sugerencia es una ayuda. '
-    +'Los demás impuestos y aportes los elegís en <b>⋯ → Configuración → Mis impuestos y aportes</b>.</div>';
+    +'Las fechas de vencimiento se corrigen en <b>⋯ → Configuración</b>.</div>';
   $('#view-imp').innerHTML=h;
 }
 
@@ -158,19 +121,14 @@ function impKpisHtml(y){
     var t=impTotalFila(f); aPagar+=t;
     if(!f.pagado){ sinPagar+=t; if(impEstado(f)==='venc'&&t>0)venc++; }
   });
-  impOtros(y).forEach(function(x){
-    var t=honNum(x.importe)||0; aPagar+=t;
-    if(!x.pagado){ sinPagar+=t; if(impEstado(x)==='venc')venc++; }
-  });
   return '<div class="kpis kpis-4">'
     +kpiM('IVA facturado · '+y,money(v),'de los honorarios con factura','')
     +kpiM('IVA de gastos',money(c),'deducible','k-green')
-    +kpiM('A pagar en el año',money(aPagar),'IVA, IRPF y aportes','')
+    +kpiM('A pagar en el año',money(aPagar),'IVA e IRPF','')
     +kpiM('Sin pagar',money(sinPagar),venc?(venc+' vencido'+(venc===1?'':'s')):'al día',venc?'k-alerta':(sinPagar?'k-amber':'k-green'))
     +'</div>';
 }
 
-/* --- El cuadro principal: una fila por período, con todo adentro --- */
 function impTablaPeriodos(y){
   var per=impPeriodos(y), t={v:0,c:0,iva:0,irpf:0};
   var filas=per.map(function(p){
@@ -183,7 +141,7 @@ function impTablaPeriodos(y){
     return '<tr'+(hayAlgo?'':' class="imp-vacio"')+'>'
       +'<td><b>'+p.label+'</b></td>'
       +'<td class="imp-venc">'+impInPer(y,p.i,'venc',venc,{type:'date'})
-        +(venc?'':'<div class="imp-falta">vence en '+MESES_L[0].toLowerCase()+' de '+(y+1)+', que DGI publica en diciembre</div>')+'</td>'
+        +(venc?'':'<div class="imp-falta">vence en enero de '+(y+1)+', que DGI publica en diciembre</div>')+'</td>'
       +'<td class="num">'+(p.ventas?money(p.ventas):'—')+'</td>'
       +'<td class="num">'+(p.compras?money(p.compras):'—')+'</td>'
       +'<td>'+impInPer(y,p.i,'iva',iva,{ph:p.sugerido?numTxt(p.sugerido):'—',sug:p.sugerido})+'</td>'
@@ -214,147 +172,6 @@ function impInPer(y,pi,campo,v,o){
     +' onchange="'+(d?'if(dateOk(this))':'')+'impSetPer('+y+','+pi+',\''+campo+'\',this.value)">';
 }
 
-/* --- Por mes: junta TODO lo que vence en cada mes (IVA, IRPF, Caja, BPS…) --- */
-/* Es un resumen: lo que se ve acá sale de los otros dos cuadros, no se edita desde aquí. */
-function impCorto(concepto){
-  var p=String(concepto||'').split('·').map(function(x){return x.trim();}).filter(Boolean);
-  if(!p.length)return '—';
-  return (p[0]==='DGI'&&p[1])?p[1]:p[0];
-}
-function impPorMes(y){
-  var meses=[]; for(var m=0;m<12;m++)meses.push({m:m,items:[],total:0,pago:0});
-  function sumar(mm,it){ meses[mm].items.push(it); meses[mm].total+=it.importe; if(it.pagado)meses[mm].pago+=it.importe; }
-
-  // Lo del cuadro de períodos: el IVA y el IRPF caen en el mes en que vencen.
-  impPeriodos(y).forEach(function(p){
-    var f=impFilaPeriodo(y,p.i,false); if(!f)return;
-    var venc=f.venc||p.venc; if(!venc||+venc.slice(0,4)!==y)return;
-    var mm=+venc.slice(5,7)-1;
-    [['IVA','Servicios Personales',honNum(f.iva)],['IRPF','Servicios Personales',honNum(f.irpf)]].forEach(function(a){
-      if(!a[2])return;
-      sumar(mm,{corto:a[0],nombre:a[0]+' · '+a[1],periodo:p.label,venc:venc,importe:a[2],pagado:!!f.pagado});
-    });
-  });
-  // Lo del cuadro de otros impuestos y aportes.
-  impOtros(y).forEach(function(x){
-    if(!x.venc||+x.venc.slice(0,4)!==y)return;
-    var imp=honNum(x.importe)||0;
-    sumar(+x.venc.slice(5,7)-1,{corto:impCorto(x.concepto),nombre:x.concepto||'',
-      periodo:x.periodo||'',venc:x.venc,importe:imp,pagado:!!x.pagado});
-  });
-  meses.forEach(function(M){ M.items.sort(function(a,b){ return a.venc.localeCompare(b.venc); }); });
-  return meses;
-}
-function impMesAbrir(m,abierto){
-  var c=vencCfg();
-  if(!Array.isArray(c.meses))c.meses=[];
-  var i=c.meses.indexOf(m);
-  if(abierto&&i<0)c.meses.push(m);
-  if(!abierto&&i>=0)c.meses.splice(i,1);
-  Store.save();
-}
-function impTablaPorMes(y){
-  var meses=impPorMes(y), conAlgo=meses.filter(function(M){ return M.items.length; });
-  var abiertos=vencCfg().meses||[];
-  var cuerpo=conAlgo.length ? conAlgo.map(function(M){
-    var falta=M.total-M.pago;
-    var vencidos=M.items.filter(function(it){ return !it.pagado&&daysTo(it.venc)<0; }).length;
-    var est=falta<=0?'pag':(vencidos?'venc':'pen');
-    var etiq=falta<=0?'Todo pagado':(vencidos?vencidos+' vencido'+(vencidos===1?'':'s'):'Falta '+money(falta));
-    return '<details class="mes-g"'+(abiertos.indexOf(M.m)>=0?' open':'')+' ontoggle="impMesAbrir('+M.m+',this.open)">'
-      +'<summary><span class="mes-n">'+MESES_L[M.m]+'</span>'
-      +'<span class="mes-c">'+M.items.length+' vencimiento'+(M.items.length===1?'':'s')+'</span>'
-      +'<span class="mes-chips">'+M.items.slice(0,4).map(function(it){ return '<i>'+esc(it.corto)+'</i>'; }).join('')
-        +(M.items.length>4?'<i>+'+(M.items.length-4)+'</i>':'')+'</span>'
-      +'<span class="mes-t">'+money(M.total)+'</span>'
-      +'<span class="pill imp-'+est+'">'+etiq+'</span></summary>'
-      +'<div class="mes-body">'+M.items.map(function(it){
-          var e=it.pagado?'pag':(daysTo(it.venc)<0?'venc':'pen'), dd=daysTo(it.venc);
-          return '<div class="mes-it"><span class="mes-it-n"><b>'+esc(it.nombre)+'</b>'
-            +(it.periodo?'<span>'+esc(it.periodo)+'</span>':'')+'</span>'
-            +'<span class="mes-it-v">'+fDate(it.venc)
-            +(e==='pen'&&dd<=10?'<span style="color:'+vencColor(dd)+'">'+(dd===0?'vence hoy':'faltan '+dd+' días')+'</span>':'')+'</span>'
-            +'<b class="mes-it-i">'+money(it.importe)+'</b>'
-            +'<span class="pill imp-'+e+'">'+IMP_EST[e]+'</span></div>';
-        }).join('')+'</div></details>';
-  }).join('') : '<div class="empty"><div class="e-ico">📭</div><p>Todavía no hay importes cargados para '+y+'.</p></div>';
-  return '<div class="card-head imp-head"><h3>Por mes</h3>'
-    +'<span class="csub">Tocá un mes para ver qué se paga</span></div>'
-    +'<div class="card"><div class="card-body" style="padding:10px 14px 14px">'+cuerpo+'</div></div>';
-}
-
-/* --- El tercer cuadro: el resto de los impuestos y aportes --- */
-function impTablaOtros(y){
-  var otros=impOtros(y);
-  var marcados=vencDelAnio(y,true).filter(function(v){ return v.gid!=='dgi_sp'&&v.gid!=='dgi_irpf'; }).length;
-  var body=otros.length?otros.map(function(x){
-    var est=impEstado(x), dd=x.venc?daysTo(x.venc):null;
-    return '<tr><td>'+esc(x.concepto||'')+'<div class="muted-cell" style="font-size:11.5px">'+esc(x.periodo||'')+'</div></td>'
-      +'<td>'+impIn(x.id,'importe',numTxt(honNum(x.importe)),{cls:'num',ph:'$'})+'</td>'
-      +'<td>'+impIn(x.id,'venc',x.venc,{type:'date'})
-        +(est!=='pag'&&dd!==null&&dd<=10?'<div class="muted-cell" style="font-size:11px;color:'+vencColor(dd)+'">'+(dd<0?'vencido':dd===0?'vence hoy':'faltan '+dd+' días')+'</div>':'')+'</td>'
-      +'<td><span class="pill clk imp-'+est+'" onclick="impTogglePago(\''+x.id+'\')">'+IMP_EST[est]+'</span></td>'
-      +'<td>'+impIn(x.id,'fechaPago',x.fechaPago,{type:'date'})+'</td>'
-      +'<td>'+impIn(x.id,'comprobante',x.comprobante,{ph:'+ N°'})+'</td>'
-      +'<td><div class="row-act"><button class="btn-ghost" title="Editar" onclick="impForm(\''+x.id+'\')">✎</button>'
-      +'<button class="btn-ghost" title="Borrar" style="color:var(--red)" onclick="impBorrar(\''+x.id+'\')">🗑</button></div></td></tr>';
-  }).join(''):emptyRow(7, marcados
-      ? 'Tocá «Traer los vencimientos del año» y se cargan solos.'
-      : 'Acá van tus otros impuestos y aportes (Caja de Profesionales, Fondo de Solidaridad…). Elegí cuáles te corresponden en ⋯ → Configuración.');
-  return '<div class="card-head imp-head"><h3>Otros impuestos y aportes</h3>'
-    +'<button class="btn btn-sm" onclick="impTraerVencimientos()">📥 Traer los vencimientos del año</button></div>'
-    +'<div class="table-wrap"><table style="min-width:880px"><thead><tr><th>Impuesto o aporte</th><th class="num">Importe</th>'
-    +'<th>Vence</th><th>Estado</th><th>Fecha de pago</th><th>Comprobante</th><th></th></tr></thead>'
-    +'<tbody>'+body+'</tbody></table></div>';
-}
-
-function impIn(id,f,v,o){ o=o||{}; var d=o.type==='date';
-  return '<input class="cell-in'+(o.cls?' '+o.cls:'')+'"'+(o.type?' type="'+o.type+'"':'')+(d?DR:'')
-    +' value="'+esc(v==null?'':v)+'" placeholder="'+(o.ph||'—')+'" onchange="'+(d?'if(dateOk(this))':'')
-    +'impSet(\''+id+'\',\''+f+'\',this.value)">'; }
-
-function impProximos(){
-  var lista=vencProximos(4,true);
-  if(!lista.length)return '';
-  return '<div class="card" style="margin-top:18px"><div class="card-head"><h3>Tus próximos vencimientos</h3></div><div class="card-body">'
-    +lista.map(function(v){ var dd=daysTo(v.iso), p=v.iso.split('-');
-      return '<div class="vrow"><div class="vdate"><div class="d">'+p[2]+'</div><div class="m">'+MESES[+p[1]-1]+'</div></div>'
-        +'<div class="vmain"><div class="vt">'+esc(vencTexto(v))+'</div><div class="vs">'+esc(v.periodo)+(v.cambio?' · fecha corregida por '+esc(v.cambio):'')+'</div></div>'
-        +'<span class="vd" style="color:'+vencColor(dd)+'">'+(dd===0?'hoy':dd+'d')+'</span></div>';
-    }).join('')+'</div></div>';
-}
-
-/* ===== ALTA / EDICIÓN de los otros impuestos y aportes ===== */
-function impForm(id){
-  var x=id?Store.get('impuestos',id):{}; curForm={form:'imp',id:id||null};
-  var todos=vencGruposTodos();
-  var ops=todos.filter(function(g){ return vencEsMio(g.id); }).concat(todos.filter(function(g){ return !vencEsMio(g.id); }));
-  $('#modal-title').textContent=id?'Editar registro':'Nuevo registro';
-  $('#modal-del').style.display=id?'inline-flex':'none';
-  $('#modal-body').innerHTML='<div class="field"><label>Impuesto o aporte <span class="req">*</span></label>'
-    +'<input data-k="concepto" list="dl-impuestos" autocomplete="off" value="'+esc(x.concepto||'')+'" placeholder="Ej: CJPPU · Caja de Profesionales"></div>'
-    +'<datalist id="dl-impuestos">'+ops.map(function(g){ return '<option value="'+esc(vencNombre(g))+'">'; }).join('')+'</datalist>'
-    +'<div class="field-2"><div class="field"><label>Período</label><input data-k="periodo" value="'+esc(x.periodo||'')+'" placeholder="Ej: Enero-Febrero"></div>'
-    +'<div class="field"><label>Importe</label><input data-k="importe" value="'+esc(numTxt(honNum(x.importe)))+'" placeholder="Ej: 12.500"></div></div>'
-    +'<div class="field-2"><div class="field"><label>Vence el</label><input type="date"'+DR+' data-k="venc" value="'+esc(x.venc||'')+'"></div>'
-    +'<div class="field"><label>Fecha de pago</label><input type="date"'+DR+' data-k="fechaPago" value="'+esc(x.fechaPago||'')+'"></div></div>'
-    +'<div class="field"><label>N° de comprobante o boleta</label><input data-k="comprobante" value="'+esc(x.comprobante||'')+'"></div>'
-    +'<div class="field"><label>Notas</label><textarea data-k="notas">'+esc(x.notas||'')+'</textarea></div>';
-  $('#modal').classList.add('open');
-}
-function impSave(){
-  if(!modalDatesOk())return;
-  var o={}; $('#modal-body').querySelectorAll('[data-k]').forEach(function(el){ o[el.dataset.k]=el.value; });
-  if(!(o.concepto||'').trim()){ toast('Falta el impuesto'); return; }
-  var x=curForm.id?Store.get('impuestos',curForm.id):{tipo:'otro',anio:impYear(),mes:null,gid:''};
-  x.concepto=o.concepto.trim(); x.periodo=o.periodo||''; x.importe=honNum(o.importe);
-  x.venc=o.venc||''; x.fechaPago=o.fechaPago||''; x.pagado=!!o.fechaPago;
-  x.comprobante=o.comprobante||''; x.notas=o.notas||'';
-  if(x.venc)x.anio=+x.venc.slice(0,4);
-  Store.upsert('impuestos',x); closeModal(); renderImpuestos(); toast('Guardado');
-}
-function impDel(){ var id=curForm.id; closeModal(); impBorrar(id); }
-
 function impExpRows(){
   var y=impYear(), datos=[];
   impPeriodos(y).forEach(function(p){
@@ -363,39 +180,22 @@ function impExpRows(){
       numTxt(honNum(f.iva)),numTxt(honNum(f.irpf)),
       IMP_EST[impEstado(f.id?f:{venc:p.venc})],fDate(f.fechaPago),f.comprobante||'']);
   });
-  impOtros(y).forEach(function(x){
-    datos.push([x.concepto+(x.periodo?' · '+x.periodo:''),fDate(x.venc),'','',
-      numTxt(honNum(x.importe)),'',
-      IMP_EST[impEstado(x)],fDate(x.fechaPago),x.comprobante||'']);
-  });
   return {title:'Impuestos '+y,
     cols:['Período','Vence','IVA facturado','IVA de gastos','IVA a pagar','IRPF','Estado','Fecha de pago','Comprobante'],
     data:datos};
 }
 
-/* Datos de ejemplo para la demostración (inventados). */
+/* Datos de ejemplo para la demostración (inventados).
+   Coherentes con los honorarios de ejemplo: un solo cliente factura 8.900 por mes → IVA 1.958 →
+   3.916 por bimestre. Los tres primeros bimestres pagos, el cuarto vencido. */
 function seedImpuestos(){
   var y=new Date().getFullYear(), out=[];
   if(!VENC_TABLA[y])return out;
-  // Los tres primeros bimestres ya pagos, el cuarto vencido sin pagar.
   [[0,3916,2400,true],[1,3916,2650,true],[2,3916,2500,true],[3,3916,2800,false]].forEach(function(p,i){
     var vMes=(p[0]*2+2)%12;
     out.push({id:'ip'+i,tipo:'periodo',anio:y,pi:p[0],iva:p[1],irpf:p[2],
       venc:vencFecha('dgi_sp',y,vMes)||'',pagado:p[3],
       fechaPago:p[3]?(vencFecha('dgi_sp',y,vMes)||''):'',comprobante:p[3]?'B-'+(4100+i):'',notas:''});
   });
-  // Además del IVA y el IRPF, dos aportes típicos de una contadora independiente, para que se vea
-  // cómo queda un mes con varias cosas juntas.
-  var caja=[[2,true],[4,true],[6,true],[8,false]];   // vence en marzo, mayo, julio y setiembre
-  caja.forEach(function(c,i){
-    var iso=vencFecha('dgi_sp',y,c[0]); if(!iso)return;
-    out.push({id:'ic'+i,tipo:'otro',anio:y,mes:c[0],gid:'p_cjppu',
-      concepto:'CJPPU · Caja de Profesionales',periodo:VENC_BIMESTRE[c[0]]||'',
-      importe:8500,venc:iso,pagado:c[1],fechaPago:c[1]?iso:'',comprobante:c[1]?'C-'+(920+i):'',notas:''});
-  });
-  var fondo=vencFecha('dgi_sp',y,8);
-  if(fondo)out.push({id:'if1',tipo:'otro',anio:y,mes:8,gid:'p_fondo',
-    concepto:'Fondo de Solidaridad · Aporte anual',periodo:'Año '+y,
-    importe:21400,venc:fondo,pagado:false,fechaPago:'',comprobante:'',notas:''});
   return out;
 }
