@@ -1,7 +1,15 @@
 /*
  * Ficha de un gasto: alta, edición y borrado (se abre desde la pestaña Gastos).
  * Está separada de gastos.js porque tiene bastante lógica propia: la forma de pago
- * (contado o crédito), el plan de cuotas con su resumen en vivo, y el IVA de la factura.
+ * (contado o crédito), el plan de cuotas, y el IVA de la factura.
+ *
+ * SOBRE EL IVA
+ * - El importe se puede escribir de dos formas: **IVA incluido** (el total de la factura) o
+ *   **sin IVA** (el subtotal). El sistema calcula lo que falte y muestra el desglose en vivo.
+ * - En "gastos.importe" SIEMPRE se guarda el TOTAL con IVA: es lo que sale del bolsillo y lo que
+ *   suman todas las pantallas. El subtotal se deduce del total y el IVA.
+ * - "IVA deducible" (100% o 50%): en Servicios Personales hay compras que se computan a la mitad.
+ *   Ese porcentaje no cambia lo que se paga, solo cuánto IVA se puede deducir.
  */
 /* ===== FICHA DE GASTO ===== */
 var _gstForm=null;
@@ -12,6 +20,10 @@ function gastoForm(id){
   if(!g.forma)g.forma='contado';
   if(!g.cuotas)g.cuotas=6;
   if(!g.primera)g.primera=gstSumarMeses(g.fecha||today(),1);
+  if(!g.ivaModo)g.ivaModo='incluido';
+  if(!g.ivaDed)g.ivaDed=100;
+  // El campo del importe muestra el subtotal si así se cargó la factura; adentro se guarda el total.
+  g._enPantalla=(g.conIva&&g.ivaModo==='mas')?Math.round(((honNum(g.importe)||0)-(honNum(g.iva)||0))*100)/100:honNum(g.importe);
   _gstForm=g; curForm={form:'gasto',id:id||null};
   $('#modal-title').textContent=id?'Gasto · '+(g.concepto||''):'Nuevo gasto';
   $('#modal-del').style.display=id?'inline-flex':'none';
@@ -19,16 +31,20 @@ function gastoForm(id){
   $('#modal').classList.add('open');
   setTimeout(function(){ var i=$('#modal-body [data-k="concepto"]'); if(i&&!id)i.focus(); },60);
 }
-// Vuelca a memoria lo que hay escrito en pantalla (para no perder nada al cambiar de forma de pago).
+// Vuelca a memoria lo que hay escrito en pantalla (para no perder nada al cambiar una opción).
 function gstFormLeer(){
   $('#modal-body').querySelectorAll('[data-k]').forEach(function(el){ _gstForm[el.dataset.k]=el.type==='checkbox'?el.checked:el.value; });
+  _gstForm._enPantalla=honNum(_gstForm.importe);
 }
 function gstFormSetForma(v){ gstFormLeer(); _gstForm.forma=v; gstFormPintar(); }
 function gstFormSetIva(el){ gstFormLeer(); _gstForm.conIva=el.checked; gstFormPintar(); }
+function gstFormSetIvaModo(v){ gstFormLeer(); _gstForm.ivaModo=v; _gstForm._ivaManual=false; gstFormPintar(); }
+function gstFormSetIvaDed(v){ gstFormLeer(); _gstForm.ivaDed=+v; gstFormPintar(); }
 
 function gstFormPintar(){
-  var g=_gstForm, credito=(g.forma==='credito');
+  var g=_gstForm, credito=(g.forma==='credito'), neto=(g.conIva&&g.ivaModo==='mas');
   var pagas=curForm.id?gstCuotasDe(curForm.id).filter(function(c){return c.pagado;}).length:0;
+  var etiqueta=neto?'Subtotal (sin IVA)':(credito?'Total a pagar':'Importe');
   var h='<div class="field"><label>¿Qué se pagó? <span class="req">*</span></label>'
       +'<input data-k="concepto" list="dl-gastos" autocomplete="off" value="'+esc(g.concepto||'')+'" placeholder="Ej: Alquiler de la oficina, UTE, resma de hojas…"></div>'
     +'<div class="field-2"><div class="field"><label>Categoría</label>'
@@ -37,24 +53,30 @@ function gstFormPintar(){
       +'<input data-k="proveedor" list="dl-proveedores" autocomplete="off" value="'+esc(g.proveedor||'')+'"></div></div>'
     +'<div class="field-2"><div class="field"><label>Fecha de la compra</label>'
       +'<input type="date" data-k="fecha"'+DR+' value="'+esc(g.fecha||'')+'" onchange="gstFormResumen()"></div>'
-      +'<div class="field"><label>'+(credito?'Total a pagar':'Importe')+' <span class="req">*</span></label>'
-      +'<input data-k="importe" value="'+esc(numTxt(honNum(g.importe)))+'" placeholder="Ej: 12.600" oninput="gstFormCambioImporte()"></div></div>';
+      +'<div class="field"><label>'+etiqueta+' <span class="req">*</span></label>'
+      +'<input data-k="importe" value="'+esc(numTxt(g._enPantalla))+'" placeholder="Ej: 12.600" oninput="gstFormCambioImporte()"></div></div>';
 
-  // IVA de la factura (le sirve para el crédito fiscal)
-  h+='<div class="gst-box"><label class="chkline"><input type="checkbox" data-k="conIva" '+(g.conIva?'checked':'')+' onchange="gstFormSetIva(this)"> La factura incluye IVA (22%)</label>';
+  /* ----- IVA de la factura ----- */
+  h+='<div class="gst-box"><label class="chkline"><input type="checkbox" data-k="conIva" '+(g.conIva?'checked':'')+' onchange="gstFormSetIva(this)"> La factura tiene IVA (22%)</label>';
   if(g.conIva){
-    var ivaSug=honNum(g.iva)||gstIvaSugerido(honNum(g.importe));
-    h+='<div class="field" style="margin:10px 0 0"><label>IVA incluido</label>'
-      +'<input data-k="iva" value="'+esc(ivaSug?numTxt(ivaSug):'')+'" placeholder="Se calcula solo" oninput="this.dataset.manual=1">'
-      +'<div class="gst-ayuda">Se calcula solo sobre el total; si la factura dice otra cosa, corregilo.</div></div>';
+    h+='<div class="gst-sub">El importe que escribí es</div>'
+      +'<div class="gseg gst-forma"><button type="button" class="gv'+(neto?'':' active')+'" onclick="gstFormSetIvaModo(\'incluido\')">Total, IVA incluido</button>'
+      +'<button type="button" class="gv'+(neto?' active':'')+'" onclick="gstFormSetIvaModo(\'mas\')">Subtotal, sin IVA</button></div>'
+      +'<div class="field" style="margin:12px 0 0"><label>IVA de la factura</label>'
+      +'<input data-k="iva" value="'+esc(gstIvaInicial(g))+'" placeholder="Se calcula solo" oninput="this.dataset.manual=1;gstFormDesglose()">'
+      +'<div class="gst-ayuda">Se calcula al 22%. Si la factura dice otra cosa (IVA mínimo, mixto), escribilo y manda el tuyo.</div></div>'
+      +'<div class="gst-sub" style="margin-top:14px">IVA deducible</div>'
+      +'<div class="gseg gst-forma"><button type="button" class="gv'+(g.ivaDed===50?'':' active')+'" onclick="gstFormSetIvaDed(100)">100%</button>'
+      +'<button type="button" class="gv'+(g.ivaDed===50?' active':'')+'" onclick="gstFormSetIvaDed(50)">50%</button></div>'
+      +'<div class="gst-ayuda">En Servicios Personales hay compras que se computan a la mitad. No cambia lo que pagás, solo cuánto IVA podés deducir.</div>'
+      +'<div class="gst-desglose" id="gst-desglose"></div>';
   }
   h+='</div>';
 
-  // Forma de pago
+  /* ----- forma de pago ----- */
   h+='<div class="field"><label>Forma de pago</label>'
     +'<div class="gseg gst-forma"><button type="button" class="gv'+(credito?'':' active')+'" onclick="gstFormSetForma(\'contado\')">Contado</button>'
     +'<button type="button" class="gv'+(credito?' active':'')+'" onclick="gstFormSetForma(\'credito\')">Crédito / cuotas</button></div></div>';
-
   if(!credito){
     h+='<label class="chkline"><input type="checkbox" data-k="pagado" '+(g.pagado?'checked':'')+'> Ya está pagado</label>'
       +'<div class="field-2"><div class="field"><label>Fecha de pago</label><input type="date" data-k="fechaPago"'+DR+' value="'+esc(g.fechaPago||'')+'"></div>'
@@ -73,22 +95,55 @@ function gstFormPintar(){
     +'<label class="chkline"><input type="checkbox" data-k="fijo" '+(g.fijo?'checked':'')+'> Es un gasto fijo (se repite todos los meses)</label>'
     +'<div class="field"><label>Notas</label><textarea data-k="notas">'+esc(g.notas||'')+'</textarea></div>';
   $('#modal-body').innerHTML=h;
-  gstFormResumen();
+  gstFormDesglose(); gstFormResumen();
 }
-function gstIvaSugerido(total){ return total?Math.round(total*IVA_GASTO/(1+IVA_GASTO)):0; }
-// Al cambiar el importe se rehace el plan de cuotas y se recalcula el IVA (salvo que lo hayan escrito a mano).
-function gstFormCambioImporte(){ gstFormResumen(); gstFormIvaAuto(); }
+
+/* ----- cálculos del IVA ----- */
+function gstIvaSugerido(base,modo){ // base = lo escrito en el campo importe
+  if(!base)return 0;
+  return modo==='mas' ? Math.round(base*IVA_GASTO) : Math.round(base*IVA_GASTO/(1+IVA_GASTO));
+}
+function gstIvaInicial(g){
+  var v=honNum(g.iva)||gstIvaSugerido(honNum(g._enPantalla),g.ivaModo);
+  return v?numTxt(v):'';
+}
+// Con lo que hay en pantalla devuelve subtotal, IVA, total y cuánto se puede deducir.
+function gstFormNumeros(){
+  var v=function(k){ var e=$('#modal-body [data-k="'+k+'"]'); return e?e.value:''; };
+  var chk=$('#modal-body [data-k="conIva"]');
+  var escrito=honNum(v('importe'))||0;
+  if(!chk||!chk.checked)return {sub:escrito,iva:0,total:escrito,ded:0,pct:100};
+  var modo=_gstForm.ivaModo, pct=_gstForm.ivaDed||100;
+  var iva=honNum(v('iva')); if(iva===null)iva=gstIvaSugerido(escrito,modo);
+  var total=(modo==='mas')?Math.round((escrito+iva)*100)/100:escrito;
+  var sub=Math.round((total-iva)*100)/100;
+  return {sub:sub,iva:iva,total:total,ded:Math.round(iva*pct)/100,pct:pct};
+}
+// Al escribir el importe: se rehace el IVA (si no lo tocaron a mano), el desglose y el plan de cuotas.
+function gstFormCambioImporte(){ gstFormIvaAuto(); gstFormDesglose(); gstFormResumen(); }
 function gstFormIvaAuto(){
   var campo=$('#modal-body [data-k="iva"]'); if(!campo||campo.dataset.manual==='1')return;
   var imp=$('#modal-body [data-k="importe"]');
-  campo.value=numTxt(gstIvaSugerido(honNum(imp?imp.value:0)));
+  var v=gstIvaSugerido(honNum(imp?imp.value:0),_gstForm.ivaModo);
+  campo.value=v?numTxt(v):'';
+}
+// El desglose que se ve en vivo: subtotal, IVA y total.
+function gstFormDesglose(){
+  var box=document.getElementById('gst-desglose'); if(!box)return;
+  var n=gstFormNumeros();
+  if(!n.total){ box.innerHTML='<span class="gst-ayuda">Escribí el importe y te muestro el desglose.</span>'; return; }
+  var fila=function(l,v,cls){ return '<div class="gd-row'+(cls?' '+cls:'')+'"><span>'+l+'</span><b>'+money(v)+'</b></div>'; };
+  box.innerHTML=fila('Subtotal',n.sub)
+    +fila('IVA'+(n.pct===50?' (22%)':''),n.iva)
+    +fila('Total de la factura',n.total,'gd-tot')
+    +(n.pct===50?'<div class="gd-row gd-ded"><span>IVA deducible (50%)</span><b>'+money(n.ded)+'</b></div>':'');
 }
 
-// Resumen en vivo del plan de cuotas: se actualiza mientras escribe, sin repintar el formulario.
+// Resumen en vivo del plan de cuotas.
 function gstFormResumen(){
   var box=document.getElementById('gst-resumen'); if(!box)return;
   var v=function(k){ var e=$('#modal-body [data-k="'+k+'"]'); return e?e.value:''; };
-  var total=honNum(v('importe'))||0, N=Math.max(1,parseInt(v('cuotas'),10)||0), primera=v('primera');
+  var total=gstFormNumeros().total, N=Math.max(1,parseInt(v('cuotas'),10)||0), primera=v('primera');
   if(!total||!primera){ box.innerHTML='<span class="gst-ayuda">Poné el total y la fecha de la primera cuota y te muestro el plan.</span>'; return; }
   var base=Math.floor(total/N*100)/100, ultima=Math.round((total-base*(N-1))*100)/100;
   var fin=gstSumarMeses(primera,N-1);
@@ -100,11 +155,11 @@ function gstFormResumen(){
 
 /* ===== guardar y borrar ===== */
 function gastoSave(){
+  var n=gstFormNumeros();
   gstFormLeer();
   var g=_gstForm;
   if(!(g.concepto||'').trim()){ toast('Falta escribir qué se pagó'); return; }
-  var total=honNum(g.importe);
-  if(!total||total<=0){ toast('Falta el importe'); return; }
+  if(!n.total||n.total<=0){ toast('Falta el importe'); return; }
   if(!modalDatesOk())return;
   var credito=(g.forma==='credito');
   var pagas=curForm.id?gstCuotasDe(curForm.id).filter(function(c){return c.pagado;}).length:0;
@@ -115,15 +170,16 @@ function gastoSave(){
   }
   var o=curForm.id?Store.get('gastos',curForm.id):{};
   o.concepto=(g.concepto||'').trim(); o.cat=(g.cat||'').trim(); o.proveedor=(g.proveedor||'').trim();
-  o.fecha=g.fecha||today(); o.importe=total; o.factura=(g.factura||'').trim(); o.notas=g.notas||'';
+  o.fecha=g.fecha||today(); o.factura=(g.factura||'').trim(); o.notas=g.notas||'';
   o.fijo=!!g.fijo; o.medio=(g.medio||'').trim();
-  o.conIva=!!g.conIva; o.iva=o.conIva?(honNum(g.iva)||gstIvaSugerido(total)):0;
+  o.importe=n.total;                    // siempre el total con IVA: es lo que sale del bolsillo
+  o.conIva=!!g.conIva;
+  o.iva=o.conIva?n.iva:0;
+  o.ivaModo=o.conIva?g.ivaModo:'incluido';
+  o.ivaDed=o.conIva?(g.ivaDed||100):100;
   o.forma=credito?'credito':'contado';
-  if(credito){
-    o.cuotas=N; o.primera=g.primera; o.pagado=false; o.fechaPago='';
-  }else{
-    o.cuotas=null; o.primera=''; o.pagado=!!g.pagado; o.fechaPago=o.pagado?(g.fechaPago||o.fecha):'';
-  }
+  if(credito){ o.cuotas=N; o.primera=g.primera; o.pagado=false; o.fechaPago=''; }
+  else { o.cuotas=null; o.primera=''; o.pagado=!!g.pagado; o.fechaPago=o.pagado?(g.fechaPago||o.fecha):''; }
   gstCatAddName(o.cat);
   var guardado=Store.upsert('gastos',o);
   gstSincronizarCuotas(guardado);

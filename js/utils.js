@@ -26,7 +26,8 @@ function modalDatesOk(){return !Array.from(document.querySelectorAll('#modal-bod
 
 /* ===== números y plata (las usan Honorarios y Gastos) ===== */
 function honNum(v){if(v===''||v==null)return null;if(typeof v==='number')return v;var n=parseFloat(String(v).replace(/[^\d,.-]/g,'').replace(/\./g,'').replace(',','.'));return isNaN(n)?null:n;}
-function numTxt(n){return n==null||n===''?'':Number(n).toLocaleString('es-UY',{maximumFractionDigits:2});}
+// Si tiene centavos se muestran los dos dígitos (1.761,50); si es redondo, sin decimales (28.000).
+function numTxt(n){ if(n==null||n==='')return ''; n=Number(n); return n.toLocaleString('es-UY',{minimumFractionDigits:(n%1?2:0),maximumFractionDigits:2}); }
 function money(n){return '$ '+numTxt(n||0);}
 
 /* ===== año de trabajo (el año fiscal se puede fijar a mano en Configuración) ===== */

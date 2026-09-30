@@ -74,6 +74,7 @@ const Store={
     if(!d.gcal)d.gcal={url:'',auto:true,last:0};
     // DEMOSTRACIÓN: si una sección quedó sin ejemplos (por ejemplo, porque esta persona abrió el demo
     // con una versión anterior, cuando Gastos todavía no existía), se vuelven a cargar.
+    d.gastos.forEach(function(g){ if(g.conIva){ if(!g.ivaModo)g.ivaModo='incluido'; if(!g.ivaDed)g.ivaDed=100; } });
     if(MODO_DEMO&&!d.gastos.length&&typeof seedGastos==='function'){ d.gastos=seedGastos(); d.cuotas=seedCuotas(d.gastos); }
     // La nota de bienvenida se fue mejorando: si en este navegador quedó una versión anterior, se
     // actualiza sola. Solo toca esa nota, nunca una escrita por la clienta.

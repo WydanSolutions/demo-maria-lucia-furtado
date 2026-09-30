@@ -16,12 +16,14 @@ function expRows(kind,arg){
       return {title:'Gastos del estudio '+y,cols:['Categoría'].concat(MESES).concat(['Total']),data:rows};
     }
     return {title:'Gastos del estudio · '+MESES_L[gstMes]+' '+y,
-      cols:['Fecha','Gasto','Categoría','Proveedor','Importe','Estado','Fecha de pago','Forma de pago','Medio','IVA incluido','N° factura','Notas'],
+      cols:['Fecha','Gasto','Categoría','Proveedor','Subtotal','IVA','% deducible','IVA deducible','Importe','Estado','Fecha de pago','Forma de pago','Medio','N° factura','Notas'],
       data:gstFiltradas().map(function(f){ var g=f.g;
-        return [fDate(f.fecha),g.concepto+(f.det?' ('+f.det+')':''),g.cat||'',g.proveedor||'',numTxt(f.importe),
-          f.pagado?'Pagado':'Pendiente',fDate(f.tipo==='cuota'?f.c.fechaPago:g.fechaPago),
-          g.forma==='credito'?('Crédito '+g.cuotas+' cuotas'):'Contado',g.medio||'',
-          f.tipo==='cuota'?'':numTxt(honNum(g.iva)),g.factura||'',g.notas||''];
+        var esCuota=(f.tipo==='cuota'), iva=esCuota?null:(honNum(g.iva)||0);
+        return [fDate(f.fecha),g.concepto+(f.det?' ('+f.det+')':''),g.cat||'',g.proveedor||'',
+          esCuota?'':numTxt(Math.round(((honNum(g.importe)||0)-(honNum(g.iva)||0))*100)/100),
+          iva?numTxt(iva):'', iva?((g.ivaDed||100)+'%'):'', iva?numTxt(gstIvaDeducible(g)):'',
+          numTxt(f.importe), f.pagado?'Pagado':'Pendiente',fDate(esCuota?f.c.fechaPago:g.fechaPago),
+          g.forma==='credito'?('Crédito '+g.cuotas+' cuotas'):'Contado',g.medio||'',g.factura||'',g.notas||''];
       })};
   }
   if(kind==='hon')return honExpRows();

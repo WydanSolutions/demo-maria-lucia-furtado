@@ -109,10 +109,23 @@ function gstTotales(filas){
   return t;
 }
 // IVA de las COMPRAS del mes (el crédito fiscal corresponde a la fecha de la factura, no a la de la cuota).
+// Devuelve el IVA de las facturas y cuánto de eso se puede deducir (hay compras que se computan al 50%).
 function gstIvaDelMes(y,m){
-  var t=0;
-  Store.all('gastos').forEach(function(g){ if(gstAnioDe(g)===y&&gstMesDe(g)===m)t+=honNum(g.iva)||0; });
-  return t;
+  var t=0, ded=0;
+  Store.all('gastos').forEach(function(g){
+    if(gstAnioDe(g)!==y||gstMesDe(g)!==m)return;
+    var iva=honNum(g.iva)||0; t+=iva; ded+=gstIvaDeducible(g);
+  });
+  return {iva:t,ded:ded};
+}
+// Lo deducible de un gasto: el IVA por su porcentaje (100% o 50%).
+function gstIvaDeducible(g){ return Math.round((honNum(g.iva)||0)*(g.ivaDed||100))/100; }
+// La celda de IVA en la tabla: el IVA de la factura y, si se computa al 50%, cuánto queda deducible.
+function gstCeldaIva(f){
+  var g=f.g, iva=honNum(g.iva)||0;
+  if(f.tipo==='cuota')return '<span class="muted-cell" data-tip="El IVA se cuenta en el mes de la compra, no en el de la cuota">—</span>';
+  if(!g.conIva||!iva)return '<span class="muted-cell">—</span>';
+  return money(iva)+((g.ivaDed||100)===50?'<span class="gst-ded">50% → '+money(gstIvaDeducible(g))+'</span>':'');
 }
 // Honorarios cobrados en el mes (para la línea de resultado). Si no está esa sección, devuelve null.
 function gstCobradoDelMes(y,m){
@@ -193,6 +206,7 @@ function gstTablaMensual(){
         +(g.fijo?'<span class="gst-fijo" data-tip="Gasto fijo: se puede traer del mes anterior con un botón">fijo</span>':'')+'</div></td>'
       +'<td>'+(f.tipo==='cuota'?'<span class="muted-cell">'+esc(g.cat||'—')+'</span>':cellIn('gastos',g.id,'cat',g.cat,{list:'dl-gastocats',ph:'Categoría'}))+'</td>'
       +'<td class="num"><b>'+(f.importe===null?'<span class="muted-cell">—</span>':money(f.importe))+'</b></td>'
+      +'<td class="num gst-iva">'+gstCeldaIva(f)+'</td>'
       +'<td>'+(f.pagado
         ?'<span class="pill st-done clk" onclick="gstTogglePago(\''+f.tipo+'\',\''+f.id+'\')" data-tip="Tocá para marcarlo como pendiente">Pagado</span>'
         :'<span class="pill st-pend clk" onclick="gstTogglePago(\''+f.tipo+'\',\''+f.id+'\')" data-tip="Tocá para marcarlo como pagado">Pendiente</span>')+'</td>'
@@ -202,15 +216,15 @@ function gstTablaMensual(){
         +'<button class="btn-ghost" title="Eliminar" style="color:var(--red)" onclick="gstBorrar(\''+f.tipo+'\',\''+f.id+'\')">🗑</button>'
       +'</div></td></tr>';
   }).join('');
-  if(!cuerpo)cuerpo=emptyRow(6,'Todavía no hay gastos cargados en '+MESES_L[m]+'.');
-  var pie=filas.length?'<tr class="gst-tot"><td colspan="3">Total de '+MESES_L[m]+'</td><td class="num">'+money(t.total)+'</td><td colspan="2"></td></tr>':'';
-  return kpis+'<div class="table-wrap"><table style="min-width:800px"><thead><tr><th>Fecha</th><th>Gasto</th><th>Categoría</th><th class="num">Importe</th><th>Estado</th><th></th></tr></thead>'
+  if(!cuerpo)cuerpo=emptyRow(7,'Todavía no hay gastos cargados en '+MESES_L[m]+'.');
+  var pie=filas.length?'<tr class="gst-tot"><td colspan="3">Total de '+MESES_L[m]+'</td><td class="num">'+money(t.total)+'</td><td colspan="3"></td></tr>':'';
+  return kpis+'<div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Fecha</th><th>Gasto</th><th>Categoría</th><th class="num">Importe</th><th class="num">IVA</th><th>Estado</th><th></th></tr></thead>'
     +'<tbody>'+cuerpo+pie+'</tbody></table></div>'+gstResultado(y,m,t);
 }
 
 // Barra de resultado del mes: lo que entró, lo que salió y la diferencia.
 function gstResultado(y,m,t){
-  var cob=gstCobradoDelMes(y,m), iva=gstIvaDelMes(y,m);
+  var cob=gstCobradoDelMes(y,m), iv=gstIvaDelMes(y,m), iva=iv.iva;
   var celda=function(l,v,cls){ return '<div class="gst-res-i"><span>'+l+'</span><b'+(cls?' class="'+cls+'"':'')+'>'+v+'</b></div>'; };
   if(cob===null&&!iva)return '';
   var h='<div class="gst-res">';
@@ -220,7 +234,7 @@ function gstResultado(y,m,t){
       +celda('Gastos pagados',money(t.pag))
       +celda('Diferencia',(dif<0?'− ':'')+money(Math.abs(dif)),dif<0?'neg':'ok');
   }
-  if(iva)h+=celda('IVA de compras del mes',money(iva));
+  if(iva)h+=celda(iv.ded===iva?'IVA de compras del mes':'IVA deducible del mes',money(iv.ded));
   return h+'</div>';
 }
 
@@ -289,15 +303,17 @@ function seedGastos(){
     });
   }
   out.push({id:'gx1',fecha:f(mm,8),concepto:'Resma de hojas y tóner',cat:'Papelería y librería',importe:1870,proveedor:'Librería Central',
-    medio:'Efectivo',pagado:true,fechaPago:f(mm,8),factura:'A 4821',fijo:false,forma:'contado',conIva:true,iva:337,notas:''});
+    medio:'Efectivo',pagado:true,fechaPago:f(mm,8),factura:'A 4821',fijo:false,forma:'contado',conIva:true,iva:337,ivaModo:'incluido',ivaDed:100,notas:''});
   out.push({id:'gx3',fecha:f(mm,3),concepto:'Sistema de contabilidad (mensual)',cat:'Software y sistemas',importe:4200,proveedor:'',
     medio:'Transferencia',pagado:true,fechaPago:f(mm,3),factura:'',fijo:true,forma:'contado',conIva:false,iva:0,notas:''});
   out.push({id:'gx4',fecha:f(mm,28),concepto:'Servicio de limpieza',cat:'Limpieza',importe:2800,proveedor:'Marta Do Santos',
     medio:'Efectivo',pagado:false,fechaPago:'',factura:'',fijo:true,forma:'contado',conIva:false,iva:0,notas:''});
+  out.push({id:'gx5',fecha:f(mm,22),concepto:'Combustible y peajes',cat:'Movilidad',importe:3200,proveedor:'Ancap',
+    medio:'Visa',pagado:true,fechaPago:f(mm,22),factura:'B 9134',fijo:false,forma:'contado',conIva:true,iva:577,ivaModo:'incluido',ivaDed:50,notas:'El IVA del combustible se computa al 50%'});
   // Una compra a crédito, para que se vea cómo funcionan las cuotas.
   out.push({id:'gx2',fecha:f(mm,17),concepto:'Escritorio y silla',cat:'Muebles y útiles',importe:12600,proveedor:'Mueblería Rivera',
     medio:'Visa',pagado:false,fechaPago:'',factura:'A 1207',fijo:false,forma:'credito',cuotas:6,primera:gstSumarMeses(f(mm,17),1),
-    conIva:true,iva:2272,notas:'6 cuotas sin interés'});
+    conIva:true,iva:2272,ivaModo:'incluido',ivaDed:50,notas:'6 cuotas sin interés · el IVA de muebles se computa al 50%'});
   return out;
 }
 // Las cuotas de los ejemplos (se arman a partir de la compra a crédito).
