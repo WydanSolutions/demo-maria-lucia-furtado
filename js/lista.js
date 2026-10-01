@@ -30,12 +30,22 @@
     if(pop)return pop;
     pop=document.createElement('div');
     pop.className='lista-pop';
-    // pointerdown: hay que elegir ANTES de que el campo pierda el foco, si no el blur cierra todo.
+    // Con el mouse: evitar que el campo pierda el foco al hacer clic en una opción.
+    pop.addEventListener('mousedown',function(e){ if(e.target.closest('.lista-op'))e.preventDefault(); });
+    // Con el dedo: se elige al LEVANTARLO, y solo si no arrastraste. Si no, al apoyar el dedo para
+    // desplazar la lista se elegía esa opción y se cerraba todo.
+    var apoyo=null;
     pop.addEventListener('pointerdown',function(e){
-      var b=e.target.closest('.lista-op'); if(!b)return;
-      e.preventDefault();
-      elegir(b.getAttribute('data-v'));
+      var b=e.target.closest('.lista-op');
+      apoyo=b?{x:e.clientX,y:e.clientY,op:b}:null;
     });
+    pop.addEventListener('pointerup',function(e){
+      if(!apoyo)return;
+      var a=apoyo; apoyo=null;
+      var arrastro=Math.abs(e.clientX-a.x)>8||Math.abs(e.clientY-a.y)>8;
+      if(!arrastro&&e.target.closest('.lista-op')===a.op)elegir(a.op.getAttribute('data-v'));
+    });
+    pop.addEventListener('pointercancel',function(){ apoyo=null; });
     document.body.appendChild(pop);
     return pop;
   }
@@ -64,10 +74,11 @@
   /* Debajo del campo; si abajo no entra (teclado del celular), arriba. */
   function ubicar(){
     if(!pop||!campo)return;
+    var desplazada=pop.scrollTop;
     var r=campo.getBoundingClientRect();
     var vv=window.visualViewport, altoVista=vv?vv.height:window.innerHeight;
-    pop.style.visibility='hidden'; pop.style.display='block'; pop.style.maxHeight='';
-    var alto=Math.min(pop.scrollHeight,236);
+    if(!pop.classList.contains('abierto')){ pop.style.visibility='hidden'; pop.style.display='block'; pop.style.maxHeight=''; }
+    var alto=Math.min(pop.scrollHeight,320);
     var abajo=altoVista-r.bottom, arriba=r.top;
     var haciaArriba=(abajo<alto+12 && arriba>abajo);
     pop.style.maxHeight=Math.max(96,Math.min(alto,(haciaArriba?arriba:abajo)-12))+'px';
@@ -77,6 +88,7 @@
     pop.style.top=(haciaArriba?(r.top-pop.offsetHeight-4):(r.bottom+4))+'px';
     pop.style.visibility='';
     pop.classList.add('abierto');
+    pop.scrollTop=desplazada;
   }
 
   function abrir(input){
@@ -146,7 +158,10 @@
     if(r.bottom<0||r.top>alto){ cerrar(); return; }
     ubicar();
   }
-  window.addEventListener('scroll',seguir,true);
+  window.addEventListener('scroll',function(e){
+    if(pop&&(e.target===pop||(e.target.closest&&e.target.closest('.lista-pop'))))return; // es el de la lista
+    seguir();
+  },true);
   window.addEventListener('resize',seguir);
   if(window.visualViewport){
     window.visualViewport.addEventListener('resize',seguir);
