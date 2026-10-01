@@ -65,6 +65,10 @@ nav{top:var(--alto-cabecera,88px)}
   .modal-foot{flex-wrap:wrap}
   .modal-foot .right{flex:1;justify-content:flex-end}
 
+  /* ---- La lista de opciones: más grande para el dedo ---- */
+  .lista-op{padding:13px 12px;font-size:15px}
+  input.con-lista{background-position:right 7px center}
+
   /* ---- Botones de cada fila: siempre visibles y más fáciles de tocar ---- */
   .row-act{opacity:1;gap:2px}
   .row-act .btn-ghost{padding:7px 9px;font-size:15px}
